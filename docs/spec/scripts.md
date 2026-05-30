@@ -85,6 +85,30 @@ Contenu attendu :
 - pas de logique cachée dans le prompt
 - pas de SQL libre côté agent
 
+## Enums et validation
+
+Les scripts d’écriture doivent utiliser des valeurs canoniques pour éviter les ambiguïtés.
+
+### Règle
+
+- l’input peut accepter quelques alias utiles
+- le script normalise vers une valeur canonique
+- si la valeur n’est pas reconnue, le script renvoie une erreur claire
+- `raw_text` conserve la nuance humaine quand nécessaire
+
+### Enums canoniques à cadrer
+
+- `goal.priority` → `low | medium | high`
+- `constraint.type` → `availability | health | mental_state | preference | schedule | equipment`
+- `constraint.status` → `active | resolved | archived`
+- `constraint.scope` → `training | life | day | session`
+- `constraint.severity` → `low | medium | high`
+- `training_block.block_type` → `build | recover | peak | taper`
+- `training_plan.status` → `draft | active | sent | archived`
+- `plan_session.status` → `proposed | exported | done | skipped | canceled`
+- `plan_review.outcome` → `kept | adapted | reset`
+- `plan_activity_matches.match_type` → `manual | inferred | imported`
+
 ## Convention
 
 Ces scripts doivent rester fins.
