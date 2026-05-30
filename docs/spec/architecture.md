@@ -20,7 +20,7 @@ Elles servent de contrat entre les données et l’agent.
 ### 3. Cron
 
 Un cron lance les jobs récurrents.
-En V0, il sert surtout à déclencher `sync-garmin` tous les jours pour importer les activités de la veille et les daily metrics, avec un petit lookback si nécessaire.
+En V0, il sert surtout à déclencher `sync-garmin` tous les jours tôt le matin, autour de 4h UTC, pour importer les activités de la veille et les daily metrics, avec un petit lookback si nécessaire.
 Son rôle est opérationnel, pas “intelligent”.
 
 ### 4. Base de données

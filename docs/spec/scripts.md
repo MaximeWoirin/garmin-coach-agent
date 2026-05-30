@@ -11,7 +11,7 @@ Ils lisent la base, calculent le minimum utile, puis sortent du JSON.
 
 Script d’ingestion quotidien.
 
-Il est appelé par le cron et doit récupérer l’état utile de la veille, puis mettre à jour la base.
+Il est appelé par le cron, idéalement tôt le matin vers 4h UTC, et doit récupérer l’état utile de la veille, puis mettre à jour la base.
 
 Contenu attendu :
 - activités de la veille
