@@ -7,6 +7,23 @@ Ils lisent la base, calculent le minimum utile, puis sortent du JSON.
 
 ## Scripts prévus
 
+### sync-garmin
+
+Script d’ingestion quotidien.
+
+Il est appelé par le cron et doit récupérer l’état utile de la veille, puis mettre à jour la base.
+
+Contenu attendu :
+- activités de la veille
+- daily metrics de la veille
+- éventuellement un petit lookback sur quelques jours pour rattraper les données Garmin arrivées en retard
+
+Rôle :
+- alimenter SQLite
+- mettre à jour l’historique de sync
+- garder les snapshots à jour
+- rester idempotent
+
 ### coach-today
 
 Produit un snapshot du jour.
@@ -26,15 +43,6 @@ Contenu attendu :
 - tendance de volume
 - séquence de séances dures
 - vue synthétique de la récupération
-
-### sync-garmin
-
-Synchronise les données locales depuis la source Garmin.
-
-Rôle :
-- alimenter SQLite
-- mettre à jour l’historique de sync
-- garder les snapshots à jour
 
 ## Contrat
 
