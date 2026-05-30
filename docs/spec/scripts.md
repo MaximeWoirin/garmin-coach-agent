@@ -9,6 +9,10 @@ Ils lisent la base, calculent le minimum utile, puis sortent du JSON.
 
 ### sync-garmin
 
+```bash
+python -m garmin_coach.sync_garmin
+```
+
 Script d’ingestion quotidien.
 
 Il est appelé par le cron, idéalement tôt le matin vers 4h UTC, et doit récupérer l’état utile de la veille, puis mettre à jour la base.
@@ -24,25 +28,55 @@ Rôle :
 - garder les snapshots à jour
 - rester idempotent
 
-### coach-today
+Entrées :
+- aucune entrée manuelle obligatoire
+- paramètres optionnels de source / plage si on veut rejouer un import
 
-Produit un snapshot du jour.
+Sortie :
+- JSON de sync avec statut, compteurs, plage lue, erreurs éventuelles
+
+### get-activities
+
+```bash
+python -m garmin_coach.get_activities --start 2026-05-01 --end 2026-05-15
+```
+
+Tool de lecture générique pour les activités sur une période.
+
+Entrées :
+- `--start` : date ISO `YYYY-MM-DD` incluse
+- `--end` : date ISO `YYYY-MM-DD` exclue
+- `--limit` : optionnel, nombre max de lignes
+- `--activity-type` : optionnel, filtre par type
+
+Sortie :
+- JSON avec la période demandée, la liste des activités et un petit résumé agrégé
 
 Contenu attendu :
-- activités récentes
-- métriques journalières utiles
-- signal de fatigue / fraîcheur
-- recommandation courte
+- activités sur la plage demandée
+- résumé de volume
+- résumé d’intensité si disponible
 
-### coach-week
+### get-fitness-state
 
-Produit une vue plus large sur la semaine.
+```bash
+python -m garmin_coach.get_fitness_state --start 2026-05-01 --end 2026-05-15
+```
+
+Tool de lecture générique pour l’état de forme sur une période.
+
+Entrées :
+- `--start` : date ISO `YYYY-MM-DD` incluse
+- `--end` : date ISO `YYYY-MM-DD` exclue
+- `--limit` : optionnel, nombre max de jours
+
+Sortie :
+- JSON avec la période demandée, les daily metrics et un résumé d’état de forme
 
 Contenu attendu :
-- charge récente
-- tendance de volume
-- séquence de séances dures
-- vue synthétique de la récupération
+- daily metrics sur la plage demandée
+- tendances simples : stress, resting HR, Body Battery, intensité
+- signal synthétique lisible par l’agent
 
 ## Contrat
 
