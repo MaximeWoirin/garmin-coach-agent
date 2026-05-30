@@ -10,7 +10,8 @@ La base de données stocke ce qui est nécessaire pour raisonner sur l’entraî
 - schéma simple et lisible
 - tables stables
 - payload brut conservé quand utile pour debug, revue et évolution
-- le plan courant est stocké en base, mais les objectifs et préférences durables vivent aussi dans la mémoire agent
+- le plan courant est stocké en base
+- les infos perso stables vivent dans la mémoire de l’agent, pas dans la DB
 
 ## Schéma relationnel V0
 
@@ -20,7 +21,6 @@ La base de données stocke ce qui est nécessaire pour raisonner sur l’entraî
 
 ### Principes
 
-- un profil de coach local par utilisateur
 - des objectifs versionnés
 - des contraintes semi-structurées avec texte brut + tags
 - un cycle macro en blocs
@@ -30,29 +30,11 @@ La base de données stocke ce qui est nécessaire pour raisonner sur l’entraî
 - des métriques journalières simples
 - un historique des synchronisations
 - une table de migrations
+- pas de table de profil utilisateur : le contexte personnel stable est gardé côté mémoire agent
 
 ---
 
 ## Tables
-
-### `coach_profile`
-
-Profil local minimal du coach.
-
-C’est une seule ligne de configuration utile au planner : sport, timezone, semaine de référence, réglages par défaut.
-Ce n’est pas la mémoire longue durée de l’agent, et ce n’est pas un historique.
-
-```sql
-CREATE TABLE coach_profile (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  display_name TEXT,
-  sport TEXT NOT NULL DEFAULT 'running',
-  timezone TEXT NOT NULL DEFAULT 'UTC',
-  preferred_week_start TEXT NOT NULL DEFAULT 'monday',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-```
 
 ### `training_goals`
 
@@ -61,7 +43,6 @@ Objectifs et événements cibles.
 ```sql
 CREATE TABLE training_goals (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  profile_id INTEGER NOT NULL,
 
   goal_code TEXT,
   primary_goal TEXT NOT NULL,
@@ -79,8 +60,7 @@ CREATE TABLE training_goals (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-  FOREIGN KEY (profile_id) REFERENCES coach_profile(id),
-  UNIQUE (profile_id, goal_code)
+  UNIQUE (goal_code)
 );
 ```
 
@@ -91,7 +71,6 @@ Contraintes actives ou historisées, avec structure légère.
 ```sql
 CREATE TABLE constraints (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  profile_id INTEGER NOT NULL,
   goal_id INTEGER,
 
   type TEXT NOT NULL,
@@ -112,7 +91,6 @@ CREATE TABLE constraints (
   resolved_at TEXT,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-  FOREIGN KEY (profile_id) REFERENCES coach_profile(id),
   FOREIGN KEY (goal_id) REFERENCES training_goals(id)
 );
 ```
@@ -392,25 +370,12 @@ CREATE TABLE schema_migrations (
 
 ## Détail des champs
 
-### `coach_profile`
-
-| Champ | Type | Contraintes | Description |
-|---|---|---|---|
-| id | INTEGER | PK, AUTOINCREMENT | Identifiant du profil |
-| display_name | TEXT | nullable | Nom lisible |
-| sport | TEXT | NOT NULL, DEFAULT 'running' | Sport principal |
-| timezone | TEXT | NOT NULL, DEFAULT 'UTC' | Fuseau horaire |
-| preferred_week_start | TEXT | NOT NULL, DEFAULT 'monday' | Jour de début de semaine |
-| created_at | TEXT | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Date de création |
-| updated_at | TEXT | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Date de mise à jour |
-
 ### `training_goals`
 
 | Champ | Type | Contraintes | Description |
 |---|---|---|---|
 | id | INTEGER | PK, AUTOINCREMENT | Identifiant de l’objectif |
-| profile_id | INTEGER | NOT NULL, FK → coach_profile.id | Profil propriétaire |
-| goal_code | TEXT | nullable, UNIQUE avec profile_id | Code stable optionnel |
+| goal_code | TEXT | nullable, UNIQUE | Code stable optionnel |
 | primary_goal | TEXT | NOT NULL | Objectif principal |
 | priority | TEXT | NOT NULL, DEFAULT 'medium' | Priorité |
 | horizon_date | TEXT | nullable | Horizon visé |
@@ -428,7 +393,6 @@ CREATE TABLE schema_migrations (
 | Champ | Type | Contraintes | Description |
 |---|---|---|---|
 | id | INTEGER | PK, AUTOINCREMENT | Identifiant de contrainte |
-| profile_id | INTEGER | NOT NULL, FK → coach_profile.id | Profil propriétaire |
 | goal_id | INTEGER | nullable, FK → training_goals.id | Objectif lié si pertinent |
 | type | TEXT | NOT NULL | Type normalisé |
 | severity | TEXT | NOT NULL, DEFAULT 'medium' | Intensité |
@@ -626,11 +590,11 @@ CREATE TABLE schema_migrations (
 ## Index recommandés
 
 ```sql
-CREATE INDEX idx_training_goals_profile_status
-  ON training_goals(profile_id, status);
+CREATE INDEX idx_training_goals_status
+  ON training_goals(status);
 
-CREATE INDEX idx_constraints_profile_status
-  ON constraints(profile_id, status);
+CREATE INDEX idx_constraints_status
+  ON constraints(status);
 
 CREATE INDEX idx_training_blocks_goal_week
   ON training_blocks(goal_id, week_start);
