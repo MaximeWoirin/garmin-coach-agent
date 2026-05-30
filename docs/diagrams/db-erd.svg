@@ -1,0 +1,210 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1400" viewBox="0 0 2000 1400" role="img" aria-label="ER diagram de la base Garmin Coach Agent">
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 32px Inter, Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 16px Inter, Arial, sans-serif; fill: #475569; }
+      .box { fill: #ffffff; stroke: #94a3b8; stroke-width: 2; rx: 14; }
+      .head { fill: #e2e8f0; }
+      .head-blue { fill: #dbeafe; }
+      .head-green { fill: #dcfce7; }
+      .head-orange { fill: #ffedd5; }
+      .head-purple { fill: #ede9fe; }
+      .head-gray { fill: #f1f5f9; }
+      .name { font: 700 16px Inter, Arial, sans-serif; fill: #0f172a; }
+      .field { font: 400 13px Inter, Arial, sans-serif; fill: #334155; }
+      .note { font: 400 12px Inter, Arial, sans-serif; fill: #64748b; }
+      .rel { stroke: #64748b; stroke-width: 2.6; fill: none; }
+      .rel-dashed { stroke: #64748b; stroke-width: 2.2; fill: none; stroke-dasharray: 8 7; }
+      .label { font: 600 12px Inter, Arial, sans-serif; fill: #475569; background: #f8fafc; }
+      .legend { font: 400 13px Inter, Arial, sans-serif; fill: #334155; }
+      .key { font: 700 13px Inter, Arial, sans-serif; fill: #0f172a; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="2000" height="1400"/>
+  <text class="title" x="60" y="56">Garmin Coach Agent — ERD V0</text>
+  <text class="subtitle" x="60" y="86">Lecture : mémoire agent hors DB, puis entités relationnelles pour objectifs, contraintes, plan, séances et imports Garmin.</text>
+
+  <!-- LEFT: profile/goals/constraints -->
+  <rect class="box" x="60" y="160" width="360" height="160"/>
+  <rect class="head-blue" x="60" y="160" width="360" height="34" rx="14"/>
+  <text class="name" x="82" y="183">coach_profile</text>
+  <text class="field" x="82" y="216">PK id</text>
+  <text class="field" x="82" y="238">display_name, sport, timezone</text>
+  <text class="field" x="82" y="260">preferred_week_start</text>
+  <text class="field" x="82" y="282">created_at, updated_at</text>
+
+  <rect class="box" x="60" y="360" width="360" height="220"/>
+  <rect class="head-purple" x="60" y="360" width="360" height="34" rx="14"/>
+  <text class="name" x="82" y="383">training_goals</text>
+  <text class="field" x="82" y="416">PK id</text>
+  <text class="field" x="82" y="438">FK profile_id → coach_profile.id</text>
+  <text class="field" x="82" y="460">goal_code, primary_goal, priority</text>
+  <text class="field" x="82" y="482">horizon_date</text>
+  <text class="field" x="82" y="504">target_event_name, target_event_date</text>
+  <text class="field" x="82" y="526">status, raw_text, metadata_json</text>
+  <text class="field" x="82" y="548">created_at, updated_at</text>
+
+  <rect class="box" x="60" y="620" width="360" height="240"/>
+  <rect class="head-orange" x="60" y="620" width="360" height="34" rx="14"/>
+  <text class="name" x="82" y="643">constraints</text>
+  <text class="field" x="82" y="676">PK id</text>
+  <text class="field" x="82" y="698">FK profile_id → coach_profile.id</text>
+  <text class="field" x="82" y="720">FK goal_id → training_goals.id</text>
+  <text class="field" x="82" y="742">type, severity, status, scope</text>
+  <text class="field" x="82" y="764">start_date, end_date, source</text>
+  <text class="field" x="82" y="786">confidence, raw_text</text>
+  <text class="field" x="82" y="808">tags_json, notes_json</text>
+  <text class="field" x="82" y="830">created_at, resolved_at, updated_at</text>
+
+  <!-- CENTER TOP: blocks/plans -->
+  <rect class="box" x="520" y="160" width="390" height="200"/>
+  <rect class="head-green" x="520" y="160" width="390" height="34" rx="14"/>
+  <text class="name" x="542" y="183">training_blocks</text>
+  <text class="field" x="542" y="216">PK id</text>
+  <text class="field" x="542" y="238">FK goal_id → training_goals.id</text>
+  <text class="field" x="542" y="260">block_type, week_start, week_end</text>
+  <text class="field" x="542" y="282">focus, load_target, status</text>
+  <text class="field" x="542" y="304">metadata_json, created_at, updated_at</text>
+
+  <rect class="box" x="520" y="400" width="390" height="220"/>
+  <rect class="head-gray" x="520" y="400" width="390" height="34" rx="14"/>
+  <text class="name" x="542" y="423">training_plans</text>
+  <text class="field" x="542" y="456">PK id</text>
+  <text class="field" x="542" y="478">FK block_id → training_blocks.id</text>
+  <text class="field" x="542" y="500">week_start, week_end</text>
+  <text class="field" x="542" y="522">status, generated_at, generated_by</text>
+  <text class="field" x="542" y="544">confidence, needs_review</text>
+  <text class="field" x="542" y="566">metadata_json, notes</text>
+  <text class="field" x="542" y="588">created_at, updated_at</text>
+
+  <rect class="box" x="520" y="670" width="390" height="250"/>
+  <rect class="head-blue" x="520" y="670" width="390" height="34" rx="14"/>
+  <text class="name" x="542" y="693">plan_sessions</text>
+  <text class="field" x="542" y="726">PK id</text>
+  <text class="field" x="542" y="748">FK plan_id → training_plans.id</text>
+  <text class="field" x="542" y="770">planned_date, planned_time</text>
+  <text class="field" x="542" y="792">activity_type, duration_min</text>
+  <text class="field" x="542" y="814">intensity, target_hr_low/high</text>
+  <text class="field" x="542" y="836">target_pace_sec_per_km, target_rpe</text>
+  <text class="field" x="542" y="858">status, garmin_event_id</text>
+  <text class="field" x="542" y="880">workout_payload_json, tags_json, notes</text>
+
+  <!-- CENTER RIGHT: reviews / matches -->
+  <rect class="box" x="980" y="400" width="400" height="230"/>
+  <rect class="head-purple" x="980" y="400" width="400" height="34" rx="14"/>
+  <text class="name" x="1002" y="423">plan_reviews</text>
+  <text class="field" x="1002" y="456">PK id</text>
+  <text class="field" x="1002" y="478">FK plan_id → training_plans.id</text>
+  <text class="field" x="1002" y="500">reviewed_at, reviewed_by</text>
+  <text class="field" x="1002" y="522">reason, summary</text>
+  <text class="field" x="1002" y="544">suggested_changes_json</text>
+  <text class="field" x="1002" y="566">outcome, needs_goal_review</text>
+  <text class="field" x="1002" y="588">created_at</text>
+
+  <rect class="box" x="980" y="690" width="400" height="200"/>
+  <rect class="head-gray" x="980" y="690" width="400" height="34" rx="14"/>
+  <text class="name" x="1002" y="713">plan_activity_matches</text>
+  <text class="field" x="1002" y="746">PK id</text>
+  <text class="field" x="1002" y="768">FK plan_session_id → plan_sessions.id</text>
+  <text class="field" x="1002" y="790">FK activity_id → activities.id</text>
+  <text class="field" x="1002" y="812">match_type, confidence</text>
+  <text class="field" x="1002" y="834">matched_at, notes</text>
+
+  <!-- RIGHT: activities / metrics / sync -->
+  <rect class="box" x="1460" y="170" width="470" height="270"/>
+  <rect class="head-orange" x="1460" y="170" width="470" height="34" rx="14"/>
+  <text class="name" x="1482" y="193">activities</text>
+  <text class="field" x="1482" y="226">PK id</text>
+  <text class="field" x="1482" y="248">UNIQUE(source, external_id)</text>
+  <text class="field" x="1482" y="270">source, external_id, device_id</text>
+  <text class="field" x="1482" y="292">activity_type, activity_name</text>
+  <text class="field" x="1482" y="314">start_time_utc, local_start_time, timezone</text>
+  <text class="field" x="1482" y="336">duration_s, moving_duration_s</text>
+  <text class="field" x="1482" y="358">distance_m, calories_kcal, HR / pace / cadence</text>
+  <text class="field" x="1482" y="380">raw_payload_json, imported_at, updated_at</text>
+
+  <rect class="box" x="1460" y="480" width="470" height="230"/>
+  <rect class="head-green" x="1460" y="480" width="470" height="34" rx="14"/>
+  <text class="name" x="1482" y="503">daily_metrics</text>
+  <text class="field" x="1482" y="536">PK id</text>
+  <text class="field" x="1482" y="558">UNIQUE(source, metric_date)</text>
+  <text class="field" x="1482" y="580">source, metric_date, timezone</text>
+  <text class="field" x="1482" y="602">steps, distance_m, floors_climbed</text>
+  <text class="field" x="1482" y="624">intensity_minutes, active_calories_kcal</text>
+  <text class="field" x="1482" y="646">resting_hr, stress_avg, body_battery_* </text>
+  <text class="field" x="1482" y="668">raw_payload_json, imported_at, updated_at</text>
+
+  <rect class="box" x="1460" y="770" width="470" height="190"/>
+  <rect class="head-gray" x="1460" y="770" width="470" height="34" rx="14"/>
+  <text class="name" x="1482" y="793">sync_runs</text>
+  <text class="field" x="1482" y="826">PK id</text>
+  <text class="field" x="1482" y="848">source, sync_type, started_at, finished_at</text>
+  <text class="field" x="1482" y="870">status, range_start, range_end</text>
+  <text class="field" x="1482" y="892">counters, cursor_value, error_message</text>
+
+  <rect class="box" x="1460" y="1010" width="470" height="110"/>
+  <rect class="head-blue" x="1460" y="1010" width="470" height="34" rx="14"/>
+  <text class="name" x="1482" y="1033">schema_migrations</text>
+  <text class="field" x="1482" y="1065">PK version</text>
+  <text class="field" x="1482" y="1087">applied_at</text>
+
+  <!-- Relations lines -->
+  <!-- profile -> goals -->
+  <path class="rel" d="M420 240 C455 240, 470 240, 520 260" marker-end="url(#arrow)"/>
+  <text class="label" x="440" y="226">1 → N</text>
+
+  <!-- profile -> constraints -->
+  <path class="rel" d="M420 280 C455 280, 470 430, 520 700" marker-end="url(#arrow)"/>
+  <text class="label" x="430" y="410">1 → N</text>
+
+  <!-- goals -> constraints -->
+  <path class="rel-dashed" d="M240 580 C240 640, 250 650, 240 700" marker-end="url(#arrow)"/>
+  <text class="label" x="252" y="660">0..1 → N</text>
+
+  <!-- goals -> blocks -->
+  <path class="rel" d="M420 470 C460 470, 470 320, 520 300" marker-end="url(#arrow)"/>
+  <text class="label" x="438" y="338">1 → N</text>
+
+  <!-- blocks -> plans -->
+  <path class="rel" d="M715 360 L715 400" marker-end="url(#arrow)"/>
+  <text class="label" x="728" y="386">1 → N</text>
+
+  <!-- plans -> sessions -->
+  <path class="rel" d="M715 620 L715 670" marker-end="url(#arrow)"/>
+  <text class="label" x="728" y="652">1 → N</text>
+
+  <!-- plans -> reviews -->
+  <path class="rel" d="M910 510 C945 510, 955 510, 980 510" marker-end="url(#arrow)"/>
+  <text class="label" x="930" y="494">1 → N</text>
+
+  <!-- sessions -> matches -->
+  <path class="rel" d="M910 785 C940 785, 945 785, 980 785" marker-end="url(#arrow)"/>
+  <text class="label" x="926" y="770">1 → N</text>
+
+  <!-- activities -> matches -->
+  <path class="rel" d="M1460 300 C1420 300, 1415 760, 1380 790" marker-end="url(#arrow)"/>
+  <text class="label" x="1430" y="536">1 → N</text>
+
+  <!-- daily metrics independent note -->
+  <path class="rel-dashed" d="M1540 480 C1540 430, 1540 420, 1540 400" marker-end="url(#arrow)"/>
+  <text class="label" x="1560" y="442">indépendant</text>
+
+  <!-- sync runs independent -->
+  <path class="rel-dashed" d="M1680 680 C1680 715, 1680 740, 1680 770" marker-end="url(#arrow)"/>
+  <text class="label" x="1696" y="744">indépendant</text>
+
+  <!-- legend -->
+  <rect x="60" y="940" width="1340" height="250" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" rx="18"/>
+  <text class="name" x="90" y="978">Lecture des liens</text>
+  <text class="legend" x="90" y="1012">• `coach_profile` → `training_goals` / `constraints` : un profil local alimente plusieurs objectifs et contraintes.</text>
+  <text class="legend" x="90" y="1042">• `training_goals` → `training_blocks` → `training_plans` → `plan_sessions` : du macro au plan hebdo puis aux séances.</text>
+  <text class="legend" x="90" y="1072">• `plan_reviews` documente les révisions du plan et peut déclencher une revue d’objectifs.</text>
+  <text class="legend" x="90" y="1102">• `activities` et `daily_metrics` sont des données terrain indépendantes ; une activité hors planning reste valide.</text>
+  <text class="legend" x="90" y="1132">• `plan_activity_matches` relie optionnellement séance prévue et activité réelle, sans obliger toutes les activités à venir du plan.</text>
+  <text class="legend" x="90" y="1162">• `sync_runs` et `schema_migrations` sont des tables de support, hors flux métier principal.</text>
+</svg>

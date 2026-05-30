@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-label="Schéma de base de données Garmin Coach Agent">
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 28px Inter, Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 16px Inter, Arial, sans-serif; fill: #475569; }
+      .group { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 20; }
+      .group-title { font: 700 18px Inter, Arial, sans-serif; fill: #0f172a; }
+      .table { fill: #ffffff; stroke: #94a3b8; stroke-width: 2; rx: 14; }
+      .table-head { fill: #e2e8f0; }
+      .table-alt { fill: #f1f5f9; }
+      .table-title { font: 700 16px Inter, Arial, sans-serif; fill: #0f172a; }
+      .table-text { font: 400 13px Inter, Arial, sans-serif; fill: #334155; }
+      .external { fill: #fff7ed; stroke: #fb923c; stroke-width: 2; rx: 14; }
+      .external-title { font: 700 16px Inter, Arial, sans-serif; fill: #9a3412; }
+      .external-text { font: 400 13px Inter, Arial, sans-serif; fill: #9a3412; }
+      .note { font: 400 13px Inter, Arial, sans-serif; fill: #475569; }
+      .arrow { stroke: #64748b; stroke-width: 2.5; fill: none; marker-end: url(#arrowhead); }
+      .dashed { stroke-dasharray: 8 6; }
+      .thin { stroke-width: 2; }
+      .accent { fill: #eff6ff; stroke: #60a5fa; stroke-width: 2; rx: 16; }
+      .accent-title { font: 700 16px Inter, Arial, sans-serif; fill: #1d4ed8; }
+      .accent-text { font: 400 13px Inter, Arial, sans-serif; fill: #1e3a8a; }
+      .legend { font: 400 13px Inter, Arial, sans-serif; fill: #334155; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="1100" />
+
+  <text class="title" x="60" y="60">Garmin Coach Agent — schéma de données V0</text>
+  <text class="subtitle" x="60" y="90">Modèle hybride : mémoire de l’agent pour le durable, base SQLite pour le plan vivant et les données terrain.</text>
+
+  <!-- External memory -->
+  <rect class="external" x="60" y="150" width="300" height="260"/>
+  <text class="external-title" x="85" y="182">Mémoire agent</text>
+  <text class="external-text" x="85" y="214">• objectifs long terme</text>
+  <text class="external-text" x="85" y="240">• préférences stables</text>
+  <text class="external-text" x="85" y="266">• contraintes récurrentes</text>
+  <text class="external-text" x="85" y="292">• style de coaching</text>
+  <text class="external-text" x="85" y="318">• leçons apprises</text>
+  <text class="external-text" x="85" y="360">Source: mémoire / profil</text>
+
+  <!-- Planner -->
+  <rect class="accent" x="430" y="165" width="320" height="230"/>
+  <text class="accent-title" x="455" y="197">Agent / planner</text>
+  <text class="accent-text" x="455" y="230">Lit mémoire + données</text>
+  <text class="accent-text" x="455" y="256">Construit le plan hebdo</text>
+  <text class="accent-text" x="455" y="282">Adapte la séance du jour</text>
+  <text class="accent-text" x="455" y="308">Peut proposer une revue</text>
+  <text class="accent-text" x="455" y="334">des objectifs</text>
+
+  <!-- DB container -->
+  <rect class="group" x="800" y="130" width="740" height="840"/>
+  <text class="group-title" x="835" y="165">Base SQLite</text>
+
+  <!-- Left column: profiling / goals -->
+  <rect class="table" x="840" y="205" width="300" height="150"/>
+  <rect class="table-head" x="840" y="205" width="300" height="34" rx="14"/>
+  <text class="table-title" x="860" y="228">training_goals</text>
+  <text class="table-text" x="860" y="260">But principal, horizon, priorité</text>
+  <text class="table-text" x="860" y="282">Événements cibles / cycles</text>
+  <text class="table-text" x="860" y="304">Versionnée dans le temps</text>
+
+  <rect class="table" x="840" y="375" width="300" height="170"/>
+  <rect class="table-head" x="840" y="375" width="300" height="34" rx="14"/>
+  <text class="table-title" x="860" y="398">constraints</text>
+  <text class="table-text" x="860" y="430">Contraintes actives / historisées</text>
+  <text class="table-text" x="860" y="452">Type, gravité, statut, dates</text>
+  <text class="table-text" x="860" y="474">raw_text + tags normalisés</text>
+  <text class="table-text" x="860" y="496">Ex: vacances, blessure, fatigue</text>
+
+  <rect class="table" x="840" y="570" width="300" height="145"/>
+  <rect class="table-head" x="840" y="570" width="300" height="34" rx="14"/>
+  <text class="table-title" x="860" y="593">coach_profile</text>
+  <text class="table-text" x="860" y="625">Contraintes stables</text>
+  <text class="table-text" x="860" y="647">Préférences de routine</text>
+  <text class="table-text" x="860" y="669">Paramètres de coaching</text>
+
+  <!-- Right column: plans -->
+  <rect class="table" x="1180" y="205" width="320" height="145"/>
+  <rect class="table-head" x="1180" y="205" width="320" height="34" rx="14"/>
+  <text class="table-title" x="1200" y="228">training_plans</text>
+  <text class="table-text" x="1200" y="260">Une version de plan générée</text>
+  <text class="table-text" x="1200" y="282">week_start, version, status</text>
+  <text class="table-text" x="1200" y="304">metadata_json</text>
+
+  <rect class="table" x="1180" y="375" width="320" height="180"/>
+  <rect class="table-head" x="1180" y="375" width="320" height="34" rx="14"/>
+  <text class="table-title" x="1200" y="398">plan_sessions</text>
+  <text class="table-text" x="1200" y="430">Séances planifiées</text>
+  <text class="table-text" x="1200" y="452">Date, type, intensité, durée</text>
+  <text class="table-text" x="1200" y="474">Statut: proposed / sent / done</text>
+  <text class="table-text" x="1200" y="496">Lien vers Garmin / ICS</text>
+
+  <rect class="table" x="1180" y="580" width="320" height="135"/>
+  <rect class="table-head" x="1180" y="580" width="320" height="34" rx="14"/>
+  <text class="table-title" x="1200" y="603">plan_reviews</text>
+  <text class="table-text" x="1200" y="635">Revue hebdo / ajustements</text>
+  <text class="table-text" x="1200" y="657">Pourquoi on change le plan</text>
+  <text class="table-text" x="1200" y="679">Signal de révision</text>
+
+  <!-- Bottom left: terrain data -->
+  <rect class="table" x="840" y="760" width="300" height="145"/>
+  <rect class="table-head" x="840" y="760" width="300" height="34" rx="14"/>
+  <text class="table-title" x="860" y="783">activities</text>
+  <text class="table-text" x="860" y="815">Séances passées</text>
+  <text class="table-text" x="860" y="837">Type, durée, charge, HR, etc.</text>
+  <text class="table-text" x="860" y="859">Source Garmin / sync</text>
+
+  <rect class="table" x="1180" y="760" width="320" height="145"/>
+  <rect class="table-head" x="1180" y="760" width="320" height="34" rx="14"/>
+  <text class="table-title" x="1200" y="783">daily_metrics</text>
+  <text class="table-text" x="1200" y="815">Forme globale journalière</text>
+  <text class="table-text" x="1200" y="837">Stress, resting HR, Body Battery</text>
+  <text class="table-text" x="1200" y="859">Métriques simples V0</text>
+
+  <rect class="table" x="840" y="925" width="300" height="95"/>
+  <rect class="table-head" x="840" y="925" width="300" height="34" rx="14"/>
+  <text class="table-title" x="860" y="948">sync_runs</text>
+  <text class="table-text" x="860" y="980">Audit des synchronisations</text>
+  <text class="table-text" x="860" y="1002">Freshness / erreurs / stats</text>
+
+  <!-- Arrows -->
+  <path class="arrow" d="M360 280 C390 280, 405 280, 430 280"/>
+  <path class="arrow" d="M750 240 C790 240, 795 240, 840 250"/>
+  <path class="arrow dashed" d="M750 300 C790 300, 795 315, 840 430"/>
+  <path class="arrow dashed" d="M750 330 C805 330, 1010 330, 1180 280"/>
+  <path class="arrow" d="M750 350 C840 350, 1040 350, 1180 445"/>
+  <path class="arrow" d="M980 695 C980 725, 980 735, 980 760"/>
+  <path class="arrow" d="M1340 695 C1340 725, 1340 735, 1340 760"/>
+  <path class="arrow" d="M980 875 C980 900, 980 910, 980 925"/>
+  <path class="arrow" d="M1340 555 C1340 585, 1340 590, 1340 580"/>
+
+  <!-- Legend -->
+  <rect x="60" y="460" width="670" height="210" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" rx="18"/>
+  <text class="group-title" x="85" y="495">Lecture du design</text>
+  <text class="legend" x="85" y="530">• La mémoire agent garde le durable : objectifs, préférences, contraintes récurrentes.</text>
+  <text class="legend" x="85" y="560">• La base stocke le vivant : activités, métriques, contraintes actives, plans, revues.</text>
+  <text class="legend" x="85" y="590">• `constraints` garde le texte brut pour les cas flous, avec une normalisation légère.</text>
+  <text class="legend" x="85" y="620">• `training_plans` et `plan_sessions` permettent la revue et la génération hebdo.</text>
+  <text class="legend" x="85" y="650">• `sync_runs` sert à la fraîcheur, au debug et à la confiance dans les données.</text>
+</svg>

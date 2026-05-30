@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1220" viewBox="0 0 1800 1220" role="img" aria-label="Schéma relationnel de la base Garmin Coach Agent">
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 30px Inter, Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 16px Inter, Arial, sans-serif; fill: #475569; }
+      .group { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 20; }
+      .group-title { font: 700 18px Inter, Arial, sans-serif; fill: #0f172a; }
+      .table { fill: #ffffff; stroke: #94a3b8; stroke-width: 2; rx: 14; }
+      .head { fill: #e2e8f0; }
+      .head-blue { fill: #dbeafe; }
+      .head-orange { fill: #ffedd5; }
+      .head-green { fill: #dcfce7; }
+      .head-purple { fill: #ede9fe; }
+      .head-gray { fill: #f1f5f9; }
+      .name { font: 700 16px Inter, Arial, sans-serif; fill: #0f172a; }
+      .field { font: 400 13px Inter, Arial, sans-serif; fill: #334155; }
+      .legend { font: 400 13px Inter, Arial, sans-serif; fill: #334155; }
+      .arrow { stroke: #64748b; stroke-width: 2.5; fill: none; marker-end: url(#arrowhead); }
+      .dashed { stroke-dasharray: 7 6; }
+      .accent { fill: #eff6ff; stroke: #60a5fa; stroke-width: 2; rx: 16; }
+      .accent-title { font: 700 16px Inter, Arial, sans-serif; fill: #1d4ed8; }
+      .accent-text { font: 400 13px Inter, Arial, sans-serif; fill: #1e3a8a; }
+      .note { font: 400 12px Inter, Arial, sans-serif; fill: #64748b; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1220" />
+
+  <text class="title" x="60" y="58">Garmin Coach Agent — schéma relationnel V0</text>
+  <text class="subtitle" x="60" y="88">Hybride : mémoire durable côté agent + données structurées en SQLite pour le plan vivant.</text>
+
+  <!-- Memory box -->
+  <rect class="accent" x="60" y="140" width="300" height="250"/>
+  <text class="accent-title" x="85" y="172">Mémoire agent</text>
+  <text class="accent-text" x="85" y="205">• objectifs long terme</text>
+  <text class="accent-text" x="85" y="231">• préférences stables</text>
+  <text class="accent-text" x="85" y="257">• contraintes récurrentes</text>
+  <text class="accent-text" x="85" y="283">• style de coaching</text>
+  <text class="accent-text" x="85" y="309">• leçons apprises</text>
+  <text class="note" x="85" y="344">pas la source de vérité du plan courant</text>
+
+  <!-- DB container -->
+  <rect class="group" x="400" y="120" width="1340" height="1000"/>
+  <text class="group-title" x="435" y="155">SQLite</text>
+
+  <!-- Column 1 top -->
+  <rect class="table" x="440" y="190" width="300" height="175"/>
+  <rect class="head-blue" x="440" y="190" width="300" height="34" rx="14"/>
+  <text class="name" x="460" y="213">coach_profile</text>
+  <text class="field" x="460" y="245">id</text>
+  <text class="field" x="460" y="266">sport, cadence, default rhythm</text>
+  <text class="field" x="460" y="287">stable preferences / settings</text>
+  <text class="field" x="460" y="308">updated_at</text>
+
+  <rect class="table" x="440" y="390" width="300" height="205"/>
+  <rect class="head-purple" x="440" y="390" width="300" height="34" rx="14"/>
+  <text class="name" x="460" y="413">training_goals</text>
+  <text class="field" x="460" y="445">id, profile_id FK</text>
+  <text class="field" x="460" y="466">primary_goal, priority, horizon</text>
+  <text class="field" x="460" y="487">target_event_name, target_date</text>
+  <text class="field" x="460" y="508">status, raw_text</text>
+  <text class="field" x="460" y="529">metadata_json</text>
+  <text class="field" x="460" y="550">created_at, updated_at</text>
+
+  <rect class="table" x="440" y="620" width="300" height="230"/>
+  <rect class="head-orange" x="440" y="620" width="300" height="34" rx="14"/>
+  <text class="name" x="460" y="643">constraints</text>
+  <text class="field" x="460" y="675">id, profile_id FK</text>
+  <text class="field" x="460" y="696">type, severity, status</text>
+  <text class="field" x="460" y="717">scope, start_date, end_date</text>
+  <text class="field" x="460" y="738">raw_text, tags_json</text>
+  <text class="field" x="460" y="759">source, confidence</text>
+  <text class="field" x="460" y="780">created_at, resolved_at</text>
+  <text class="field" x="460" y="801">notes_json</text>
+
+  <!-- Column 2 top -->
+  <rect class="table" x="780" y="190" width="330" height="195"/>
+  <rect class="head-green" x="780" y="190" width="330" height="34" rx="14"/>
+  <text class="name" x="800" y="213">training_blocks</text>
+  <text class="field" x="800" y="245">id, goal_id FK</text>
+  <text class="field" x="800" y="266">block_type (build / recover / peak)</text>
+  <text class="field" x="800" y="287">week_start, week_end</text>
+  <text class="field" x="800" y="308">focus, load_target</text>
+  <text class="field" x="800" y="329">status</text>
+  <text class="field" x="800" y="350">metadata_json</text>
+
+  <rect class="table" x="780" y="415" width="330" height="220"/>
+  <rect class="head-gray" x="780" y="415" width="330" height="34" rx="14"/>
+  <text class="name" x="800" y="438">training_plans</text>
+  <text class="field" x="800" y="470">id, block_id FK</text>
+  <text class="field" x="800" y="491">week_start, week_end</text>
+  <text class="field" x="800" y="512">status (draft / sent / active)</text>
+  <text class="field" x="800" y="533">generated_at, generated_by</text>
+  <text class="field" x="800" y="554">confidence, needs_review</text>
+  <text class="field" x="800" y="575">metadata_json</text>
+  <text class="field" x="800" y="596">notes</text>
+
+  <rect class="table" x="780" y="670" width="330" height="250"/>
+  <rect class="head-blue" x="780" y="670" width="330" height="34" rx="14"/>
+  <text class="name" x="800" y="693">plan_sessions</text>
+  <text class="field" x="800" y="725">id, plan_id FK</text>
+  <text class="field" x="800" y="746">planned_date, planned_time</text>
+  <text class="field" x="800" y="767">activity_type, duration_min</text>
+  <text class="field" x="800" y="788">intensity, target_hr, target_pace</text>
+  <text class="field" x="800" y="809">status (proposed / exported / done)</text>
+  <text class="field" x="800" y="830">garmin_event_id, workout_payload_json</text>
+  <text class="field" x="800" y="851">tags_json, notes</text>
+  <text class="field" x="800" y="872">created_at, updated_at</text>
+
+  <!-- Column 3 top -->
+  <rect class="table" x="1160" y="190" width="300" height="220"/>
+  <rect class="head-purple" x="1160" y="190" width="300" height="34" rx="14"/>
+  <text class="name" x="1180" y="213">plan_reviews</text>
+  <text class="field" x="1180" y="245">id, plan_id FK</text>
+  <text class="field" x="1180" y="266">reviewed_at, reviewed_by</text>
+  <text class="field" x="1180" y="287">reason, summary</text>
+  <text class="field" x="1180" y="308">suggested_changes_json</text>
+  <text class="field" x="1180" y="329">outcome (kept / adapted / reset)</text>
+  <text class="field" x="1180" y="350">needs_goal_review boolean</text>
+
+  <rect class="table" x="1160" y="445" width="300" height="200"/>
+  <rect class="head-orange" x="1160" y="445" width="300" height="34" rx="14"/>
+  <text class="name" x="1180" y="468">activities</text>
+  <text class="field" x="1180" y="500">id, external_id, source</text>
+  <text class="field" x="1180" y="521">start_time_utc, duration_s</text>
+  <text class="field" x="1180" y="542">activity_type, distance_m</text>
+  <text class="field" x="1180" y="563">avg_hr, max_hr, load fields</text>
+  <text class="field" x="1180" y="584">raw_payload_json</text>
+  <text class="field" x="1180" y="605">imported_at, updated_at</text>
+
+  <rect class="table" x="1160" y="680" width="300" height="170"/>
+  <rect class="head-green" x="1160" y="680" width="300" height="34" rx="14"/>
+  <text class="name" x="1180" y="703">daily_metrics</text>
+  <text class="field" x="1180" y="735">id, source, metric_date</text>
+  <text class="field" x="1180" y="756">resting_hr, stress_avg</text>
+  <text class="field" x="1180" y="777">body_battery_start/end</text>
+  <text class="field" x="1180" y="798">intensity_minutes, steps</text>
+  <text class="field" x="1180" y="819">raw_payload_json</text>
+
+  <!-- Column 4 bottom -->
+  <rect class="table" x="1490" y="445" width="220" height="170"/>
+  <rect class="head-gray" x="1490" y="445" width="220" height="34" rx="14"/>
+  <text class="name" x="1510" y="468">sync_runs</text>
+  <text class="field" x="1510" y="500">id, sync_type</text>
+  <text class="field" x="1510" y="521">started_at, finished_at</text>
+  <text class="field" x="1510" y="542">status, cursor_value</text>
+  <text class="field" x="1510" y="563">stats / error_message</text>
+
+  <rect class="table" x="1490" y="680" width="220" height="170"/>
+  <rect class="head-blue" x="1490" y="680" width="220" height="34" rx="14"/>
+  <text class="name" x="1510" y="703">schema_migrations</text>
+  <text class="field" x="1510" y="735">version PK</text>
+  <text class="field" x="1510" y="756">applied_at</text>
+
+  <!-- Relations -->
+  <path class="arrow" d="M590 365 L590 390"/>
+  <path class="arrow" d="M590 595 L590 620"/>
+  <path class="arrow" d="M740 475 C760 475, 760 260, 780 260"/>
+  <path class="arrow" d="M1060 297 C1110 297, 1110 300, 1160 300"/>
+  <path class="arrow" d="M1060 525 C1110 525, 1110 535, 1160 535"/>
+  <path class="arrow" d="M1015 635 C1015 655, 1015 660, 1015 670"/>
+  <path class="arrow" d="M1310 645 C1310 655, 1310 660, 1310 680"/>
+  <path class="arrow dashed" d="M1460 550 C1480 550, 1485 550, 1490 550"/>
+  <path class="arrow" d="M1460 755 C1480 755, 1485 755, 1490 755"/>
+
+  <!-- Legend / notes -->
+  <rect x="60" y="430" width="300" height="300" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" rx="18"/>
+  <text class="group-title" x="85" y="465">Lecture du modèle</text>
+  <text class="legend" x="85" y="500">• Memory = durable, vivant hors DB.</text>
+  <text class="legend" x="85" y="530">• DB = plan courant + historique.</text>
+  <text class="legend" x="85" y="560">• Contraintes = texte brut + tags.</text>
+  <text class="legend" x="85" y="590">• Plan = bloc hebdo versionné.</text>
+  <text class="legend" x="85" y="620">• Séances = export Garmin.</text>
+  <text class="legend" x="85" y="650">• Reviews = garde-fou sur les objectifs.</text>
+  <text class="note" x="85" y="690">FK = relation logique proposée</text>
+</svg>
