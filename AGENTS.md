@@ -17,6 +17,7 @@
 
 - **Language:** Python (module pattern: `python -m garmin_coach.<script-name>`)
 - **Database:** SQLite (local, file-based)
+- **Migrations:** simple project-owned SQL migrations + `schema_migrations`
 - **Data exchange:** JSON snapshots between scripts and agent
 
 ## Architecture

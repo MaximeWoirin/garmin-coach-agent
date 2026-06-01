@@ -26,6 +26,10 @@ On sépare clairement :
 .
 ├── pyproject.toml
 ├── README.md
+├── migrations/
+│   ├── 0001_init.sql
+│   ├── 0002_add_sync_runs.sql
+│   └── 0003_plan_session_status.sql
 ├── docs/
 │   └── spec/
 │       ├── README.md
@@ -119,8 +123,15 @@ Responsabilités :
 - helpers de connexion
 - transactions simples
 - utilitaires communs SQL
+- exécution des migrations
 
 On évite de mettre ici des règles métier.
+
+Le module doit porter un runner minimal de migrations :
+- création de `schema_migrations` si besoin
+- lecture du dossier `migrations/`
+- application dans l’ordre
+- enregistrement des versions appliquées
 
 ### `garmin_coach/enums.py`
 Enums canoniques du projet.
@@ -230,10 +241,14 @@ Tout ce qui peut servir à plusieurs scripts doit aller dans `garmin_coach/`.
 ### 3. Une responsabilité par module
 On évite les gros fichiers fourre-tout.
 
-### 4. La DB n’est pas exposée directement à l’agent
+### 4. Les migrations vivent hors du code métier
+Les fichiers SQL vont dans `migrations/`.
+Le runner vit dans `garmin_coach/db.py`.
+
+### 5. La DB n’est pas exposée directement à l’agent
 L’agent appelle des scripts, pas du SQL.
 
-### 5. Garmin est isolé
+### 6. Garmin est isolé
 Tout le code Garmin reste groupé dans `garmin_coach/garmin/`.
 
 ## Flux type
