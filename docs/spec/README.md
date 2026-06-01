@@ -25,6 +25,7 @@ La V0 repose sur cinq blocs :
 
 - [`objectives.md`](objectives.md)
 - [`architecture.md`](architecture.md)
+- [`code.md`](code.md)
 - [`database.md`](database.md)
 - [`scripts.md`](scripts.md)
 - [`agent.md`](agent.md)
