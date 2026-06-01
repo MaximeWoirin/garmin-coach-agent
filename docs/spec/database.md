@@ -12,6 +12,7 @@ La base de données stocke ce qui est nécessaire pour raisonner sur l’entraî
 - payload brut conservé quand utile pour debug, revue et évolution
 - le plan courant est stocké en base
 - les infos perso stables vivent dans la mémoire de l’agent, pas dans la DB
+- migrations SQL maison, simples, exécutées par le projet Python
 
 ## Schéma relationnel V0
 
@@ -365,6 +366,54 @@ CREATE TABLE schema_migrations (
   applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+## Migrations
+
+### Stratégie V0
+
+On utilise un système de migrations **maison**, simple.
+
+- un dossier `migrations/`
+- un fichier SQL par migration
+- une version monotone : `0001`, `0002`, `0003`, etc.
+- une ligne par migration appliquée dans `schema_migrations`
+
+### Structure attendue
+
+```text
+migrations/
+├── 0001_init.sql
+├── 0002_add_sync_runs.sql
+└── 0003_plan_session_status.sql
+```
+
+### Règles
+
+- une migration appliquée ne doit plus être modifiée
+- une évolution de schéma se fait dans un nouveau fichier
+- le runner applique seulement les versions absentes de `schema_migrations`
+- les scripts du projet doivent pouvoir démarrer sur une DB vide et la mettre à niveau automatiquement
+
+### Exécution
+
+Le projet Python porte un runner de migrations minimal dans `garmin_coach/db.py`.
+
+Le flow attendu est :
+
+1. ouverture de la connexion SQLite
+2. création de `schema_migrations` si besoin
+3. application des migrations manquantes dans l’ordre
+4. poursuite du script métier
+
+### SQLite
+
+Quand une migration n’est pas faisable par simple `ALTER TABLE`, on reconstruit explicitement :
+
+- création d’une nouvelle table
+- copie des données
+- suppression / renommage
+
+Pas de magie implicite.
 
 ---
 

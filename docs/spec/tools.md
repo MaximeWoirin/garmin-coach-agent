@@ -71,6 +71,12 @@ Pour chaque bloc métier, on garde la même fiche :
 - **Manquant** : lecture du plan courant, création/suppression de séances, changement de statut, export Garmin
 - **Dépendances** : objectifs, contraintes, activités, métriques physiologiques, historique du plan
 
+## Authentification Garmin
+
+- `auth-garmin` fait partie du socle à implémenter
+- il sert au premier setup et aux ré-authentifications si le refresh token expire ou est révoqué
+- les scripts métier (`sync-garmin`, `export-plan-garmin`) consomment ensuite les tokens existants
+
 ## Progression attendue
 
 On peut remplir ce dossier progressivement :

@@ -11,6 +11,7 @@ La documentation vit ici. Le dépôt est volontairement documenté avant d’ajo
 - [`spec/README.md`](spec/README.md) — brief, objectifs, vue macro
 - [`spec/objectives.md`](spec/objectives.md) — objectifs du projet
 - [`spec/architecture.md`](spec/architecture.md) — architecture globale
+- [`spec/code.md`](spec/code.md) — architecture du code Python
 - [`spec/database.md`](spec/database.md) — base de données
 - [`spec/tools.md`](spec/tools.md) — structure fonctionnelle des outils
 - [`spec/scripts.md`](spec/scripts.md) — inventaire des scripts et CLI
