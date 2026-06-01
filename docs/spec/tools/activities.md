@@ -2,7 +2,7 @@
 
 ## Rôle
 
-Gérer les séances réelles importées depuis Garmin, et éventuellement les activités manuelles si on décide d’en supporter.
+Gérer les séances réelles importées depuis Garmin.
 
 ## Existant
 
@@ -17,8 +17,7 @@ Gérer les séances réelles importées depuis Garmin, et éventuellement les ac
 
 ## Scripts envisagés
 
-- `reconcile-plan`
-- `match-plan-activity`
+- `sync-garmin`
 
 ## Dépendances
 
@@ -28,5 +27,4 @@ Gérer les séances réelles importées depuis Garmin, et éventuellement les ac
 
 ## Questions ouvertes
 
-- veut-on vraiment des activités manuelles en V0 ?
-- la réconciliation doit-elle être automatique ou déclenchée par le cron ?
+- la réconciliation doit-elle être automatique dans `sync-garmin` ou exposée aussi en logique interne réutilisable ?

@@ -315,37 +315,6 @@ Contenu attendu :
 - état courant du cycle de vie de l’objectif
 - éventuels champs `raw_text` si l’entrée humaine est plus nuancée que la valeur normalisée
 
-### update-plan-session
-
-```bash
-python -m garmin_coach.update_plan_session --plan-id 42 --session-id 7
-```
-
-Script de modification d’une séance du plan.
-
-Entrées :
-- `--plan-id` : identifiant du plan, obligatoire
-- `--session-id` : identifiant de la séance, obligatoire
-- `--patch-json` : patch partiel des champs à modifier, obligatoire
-- `--dry-run` : simule sans écrire
-
-Sortie :
-- JSON avec la séance mise à jour et les validations éventuelles
-
-Comportement backbone :
-- modifie une `plan_session`
-- garde l’historique via la base
-- refuse les modifications incohérentes
-- reste ciblé et fin
-
-Interface JSON minimale :
-- `status` : `success | partial | failed`
-- `plan_id`
-- `session_id`
-- `updated_fields[]`
-- `warnings[]`
-- `errors[]`
-
 ### export-plan-garmin
 
 ```bash
@@ -512,7 +481,7 @@ Les scripts d’écriture doivent utiliser des valeurs canoniques pour éviter l
 - `constraint.scope` → `training | life | day | session`
 - `constraint.severity` → `low | medium | high`
 - `training_block.block_type` → `build | recover | peak | taper`
-- `training_plan.status` → `draft | active | sent | archived`
+- `training_plans.status` → `draft | active | sent | archived`
 - `plan_session.status` → `draft | proposed | exported | done | skipped | canceled`
 - `plan_review.outcome` → `kept | adapted | reset`
 - `plan_activity_matches.match_type` → `manual | inferred | imported`

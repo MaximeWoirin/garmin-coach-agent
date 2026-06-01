@@ -41,14 +41,11 @@ Le backbone V0 du bloc plans repose sur ces scripts :
 
 - `create-plan-draft`
 - `create-plan-session`
+- `delete-plan-session`
 - `get-current-plan`
-- `build-week-plan`
-- `review-plan`
-- `apply-plan-change`
-- `update-plan-session`
-- `export-plan-garmin`
-- `reconcile-plan`
+- `set-plan-status`
 - `set-plan-session-status`
+- `export-plan-garmin`
 
 ## Dépendances
 
@@ -61,5 +58,4 @@ Le backbone V0 du bloc plans repose sur ces scripts :
 
 ## Questions ouvertes
 
-- la génération hebdo doit-elle produire un draft révisable ou un plan directement exportable ?
-- quelle part de la réconciliation doit vivre dans un script dédié vs dans l’export ?
+- quelle part de la réconciliation doit vivre dans le `sync-garmin` vs dans une logique réutilisable interne ?

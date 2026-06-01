@@ -62,13 +62,13 @@ Pour chaque bloc métier, on garde la même fiche :
 ### Contraintes
 
 - **Existant** : `get-constraints`
-- **Manquant** : création, mise à jour, archivage, résolution
+- **Manquant** : création, suppression, changement de statut
 - **Dépendances** : mémoire agent pour le durable, SQLite pour l’état actif/historique
 
 ### Plans
 
 - **Existant** : schéma DB (`training_blocks`, `training_plans`, `plan_sessions`, `plan_reviews`)
-- **Manquant** : lecture du plan courant, construction du plan, revue, export Garmin, réconciliation
+- **Manquant** : lecture du plan courant, création/suppression de séances, changement de statut, export Garmin
 - **Dépendances** : objectifs, contraintes, activités, métriques physiologiques, historique du plan
 
 ## Progression attendue
