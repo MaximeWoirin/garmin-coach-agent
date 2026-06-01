@@ -481,6 +481,31 @@ CREATE TABLE schema_migrations (
 | needs_goal_review | INTEGER | NOT NULL, DEFAULT 0 | Demande de révision des objectifs |
 | created_at | TEXT | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Date de création |
 
+## Machine d’état
+
+### Plan
+
+- `draft` : plan en cours d’édition locale
+- `active` : plan validé et prêt à vivre côté coaching
+- `sent` : plan poussé vers Garmin
+- `archived` : plan clos / conservé pour historique
+
+### Séance de plan
+
+- `draft` : séance créée mais encore librement modifiable
+- `proposed` : séance proposée dans un plan validé mais pas encore exportée
+- `exported` : séance poussée vers Garmin
+- `done` : séance réalisée et reconnue dans le réel
+- `skipped` : séance sautée
+- `canceled` : séance annulée
+
+### Règles de workflow
+
+- la validation d’un plan peut faire passer ses séances de `draft` à `proposed`
+- `delete` n’est autorisé que sur une séance non exportée et non réalisée
+- un changement de contenu sur une séance validée se fait plutôt par remplacement explicite
+- la réconciliation entre plan et réel ne doit pas casser l’historique des séances exportées ou réalisées
+
 ### `plan_activity_matches`
 
 | Champ | Type | Contraintes | Description |
@@ -625,6 +650,31 @@ CREATE INDEX idx_daily_metrics_date
 - GPS point par point
 - laps / splits
 - temps réel
+
+## Enums canoniques
+
+Les champs de statut et de source doivent rester cohérents entre la DB et les scripts.
+
+### Plans
+
+- `training_plans.status` → `draft | active | sent | archived`
+
+### Séances de plan
+
+- `plan_sessions.status` → `draft | proposed | exported | done | skipped | canceled`
+
+### Activités
+
+- `activities.source` → `garmin | manual`
+- `activities` n’ont pas de statut canonique propre en V0 : ce sont des enregistrements réels importés ou saisis, pas des objets de workflow.
+
+### Matches
+
+- `plan_activity_matches.match_type` → `manual | inferred | imported`
+
+### Revue
+
+- `plan_reviews.outcome` → `kept | adapted | reset`
 
 ## Idée générale du schéma
 

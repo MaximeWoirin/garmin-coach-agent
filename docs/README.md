@@ -12,5 +12,6 @@ La documentation vit ici. Le dépôt est volontairement documenté avant d’ajo
 - [`spec/objectives.md`](spec/objectives.md) — objectifs du projet
 - [`spec/architecture.md`](spec/architecture.md) — architecture globale
 - [`spec/database.md`](spec/database.md) — base de données
-- [`spec/scripts.md`](spec/scripts.md) — scripts et CLI
+- [`spec/tools.md`](spec/tools.md) — structure fonctionnelle des outils
+- [`spec/scripts.md`](spec/scripts.md) — inventaire des scripts et CLI
 - [`spec/agent.md`](spec/agent.md) — agent et contrat d’usage

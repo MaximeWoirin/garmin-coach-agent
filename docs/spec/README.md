@@ -13,8 +13,9 @@ Voir [`objectives.md`](objectives.md).
 
 ## Vue macro
 
-La V0 repose sur quatre blocs :
+La V0 repose sur cinq blocs :
 
+- **Outils** : découpage fonctionnel des blocs métier et de leurs scripts
 - **Scripts** : points d’entrée simples pour produire des snapshots
 - **Cron** : exécutions planifiées pour garder les données fraîches
 - **Base de données** : stockage local des activités et métriques utiles

@@ -5,7 +5,183 @@
 Les scripts sont les points d’entrée stables du projet.
 Ils lisent la base, calculent le minimum utile, puis sortent du JSON.
 
+Cette page inventorie les scripts par état actuel.
+Le découpage fonctionnel détaillé vit dans [`tools.md`](tools.md).
+
+## Vue rapide
+
+La cartographie métier vit dans [`tools.md`](tools.md).
+Cette page reste l’inventaire des scripts et de leur contrat d’entrée/sortie.
+
 ## Scripts prévus
+
+### create-plan-draft
+
+```bash
+python -m garmin_coach.create_plan_draft --week-start 2026-06-01 --week-end 2026-06-08
+```
+
+Script de création d’un plan local en draft.
+
+Entrées :
+- `--week-start` : date ISO `YYYY-MM-DD`, début de semaine, obligatoire
+- `--week-end` : date ISO `YYYY-MM-DD`, fin de semaine, obligatoire
+- `--goal-id` : identifiant d’objectif, optionnel
+- `--block-id` : identifiant de bloc macro, optionnel
+- `--title` : titre libre du plan, optionnel
+- `--notes` : notes initiales, optionnel
+- `--metadata-json` : métadonnées supplémentaires, optionnel
+- `--sessions-json` : définition initiale des séances du plan, optionnel
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec le plan créé, ses métadonnées, les séances créées et les avertissements éventuels
+
+Comportement backbone :
+- crée `training_plans`
+- crée les `plan_sessions` associées
+- garde le plan en statut draft
+- valide les champs canonique / dates / cohérence
+- reste idempotent si on lui donne un identifiant de reprise
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `plan_id`
+- `week_start`, `week_end`
+- `plan_status`
+- `sessions_created`
+- `warnings[]`, `errors[]`
+
+### create-plan-session
+
+```bash
+python -m garmin_coach.create_plan_session --plan-id 42 --planned-date 2026-06-03 --activity-type run --duration-min 45
+```
+
+Script de création d’une séance dans un plan, par défaut en état draft.
+
+Entrées :
+- `--plan-id` : identifiant du plan parent, obligatoire
+- `--planned-date` : date ISO `YYYY-MM-DD`, obligatoire
+- `--planned-time` : heure locale optionnelle
+- `--activity-type` : type d’activité, obligatoire
+- `--duration-min` : durée cible en minutes, obligatoire
+- `--intensity` : intensité cible, optionnelle
+- `--target-hr-low` : borne basse FC, optionnelle
+- `--target-hr-high` : borne haute FC, optionnelle
+- `--target-pace-sec-per-km` : allure cible, optionnelle
+- `--target-rpe` : RPE cible, optionnelle
+- `--status` : statut initial, défaut `draft`
+- `--tags-json` : tags supplémentaires, optionnel
+- `--notes` : notes, optionnel
+- `--workout-payload-json` : payload exportable Garmin, optionnel
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec la séance créée, son statut, et les validations éventuelles
+
+Comportement backbone :
+- crée une `plan_session`
+- rattache la séance au plan demandé
+- garde la séance en état éditable par défaut
+- valide la cohérence des cibles et des dates
+- reste idempotent si on lui donne une clé de reprise
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `plan_id`
+- `session_id`
+- `session_status`
+- `warnings[]`, `errors[]`
+
+### delete-plan-session
+
+```bash
+python -m garmin_coach.delete_plan_session --plan-id 42 --session-id 7
+```
+
+Script de suppression d’une séance de plan.
+
+Entrées :
+- `--plan-id` : identifiant du plan, obligatoire
+- `--session-id` : identifiant de la séance, obligatoire
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec la séance supprimée et les éventuels avertissements
+
+Comportement backbone :
+- supprime une `plan_session` seulement si elle est encore éditable
+- refuse la suppression si la séance est déjà exportée ou réalisée
+- reste strict pour préserver la réconciliation
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `plan_id`
+- `session_id`
+- `warnings[]`
+- `errors[]`
+
+### set-plan-status
+
+```bash
+python -m garmin_coach.set_plan_status --plan-id 42 --status active
+```
+
+Script de changement du statut d’un plan.
+
+Entrées :
+- `--plan-id` : identifiant du plan, obligatoire
+- `--status` : nouveau statut du plan, obligatoire
+- `--cascade-sessions` : applique aussi une transition de statut aux séances si pertinent
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec le plan mis à jour, les transitions de séances et les validations éventuelles
+
+Comportement backbone :
+- change le statut du plan
+- peut faire passer les séances de `draft` à `proposed` quand le plan est validé
+- peut figer les séances au moment de l’export ou de l’archivage selon la transition
+- conserve la cohérence du workflow sans casser l’historique
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `plan_id`
+- `plan_status`
+- `session_status_changes[]`
+- `warnings[]`
+- `errors[]`
+
+### set-plan-session-status
+
+```bash
+python -m garmin_coach.set_plan_session_status --plan-id 42 --session-id 7 --status exported
+```
+
+Script de changement granulaire du statut d’une séance de plan.
+
+Entrées :
+- `--plan-id` : identifiant du plan, obligatoire
+- `--session-id` : identifiant de la séance, obligatoire
+- `--status` : nouveau statut de séance, obligatoire
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec la séance mise à jour et les validations éventuelles
+
+Comportement backbone :
+- modifie uniquement le statut de la séance
+- ne touche pas au contenu de la séance
+- reste utile pour export, done, skipped, canceled et réconciliation
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `plan_id`
+- `session_id`
+- `session_status`
+- `warnings[]`
+- `errors[]`
 
 ### sync-garmin
 
@@ -33,7 +209,46 @@ Entrées :
 - paramètres optionnels de source / plage si on veut rejouer un import
 
 Sortie :
-- JSON de sync avec statut, compteurs, plage lue, erreurs éventuelles
+- JSON de sync avec statut, compteurs, plage lue, réconciliation éventuelle, erreurs éventuelles
+
+Comportement backbone :
+- importe les activités Garmin
+- importe les daily metrics Garmin
+- met à jour `sync_runs`
+- réconcilie le plan local avec le réel importé
+- met à jour les matches et statuts de séances si nécessaire
+- reste idempotent
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `source` : `garmin`
+- `range_start`, `range_end`
+- `activities_seen`, `activities_inserted`, `activities_updated`
+- `daily_metrics_seen`, `daily_metrics_upserted`
+- `reconciled_sessions`, `matched_activities`
+- `warnings[]`, `errors[]`
+
+### get-current-plan
+
+```bash
+python -m garmin_coach.get_current_plan
+```
+
+Script de lecture du plan courant.
+
+Entrées :
+- `--plan-id` : plan précis, optionnel
+- `--week-start` : plan de la semaine, optionnel
+- `--include-sessions` : inclut les séances détaillées
+- `--include-metadata` : inclut les métadonnées du plan
+
+Sortie :
+- JSON avec le plan courant, son statut, ses séances et ses métadonnées utiles
+
+Contenu attendu :
+- plan actif ou draft
+- séances associées
+- résumé compact pour l’agent
 
 ### get-activities
 
@@ -78,12 +293,129 @@ Contenu attendu :
 - tendances simples : stress, resting HR, Body Battery, intensité
 - signal synthétique lisible par l’agent
 
+### get-goals
+
+```bash
+python -m garmin_coach.get_goals --status active
+```
+
+Tool de lecture pour récupérer les objectifs d’entraînement utiles à l’agent.
+
+Entrées :
+- `--status` : filtre optionnel, par défaut les objectifs actifs
+- `--limit` : optionnel, nombre max d’objectifs
+- `--include-archived` : optionnel, inclut les objectifs archivés
+
+Sortie :
+- JSON avec la liste des objectifs et un résumé compact
+
+Contenu attendu :
+- objectifs longs termes et leur contexte
+- priorité canonique
+- état courant du cycle de vie de l’objectif
+- éventuels champs `raw_text` si l’entrée humaine est plus nuancée que la valeur normalisée
+
+### update-plan-session
+
+```bash
+python -m garmin_coach.update_plan_session --plan-id 42 --session-id 7
+```
+
+Script de modification d’une séance du plan.
+
+Entrées :
+- `--plan-id` : identifiant du plan, obligatoire
+- `--session-id` : identifiant de la séance, obligatoire
+- `--patch-json` : patch partiel des champs à modifier, obligatoire
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec la séance mise à jour et les validations éventuelles
+
+Comportement backbone :
+- modifie une `plan_session`
+- garde l’historique via la base
+- refuse les modifications incohérentes
+- reste ciblé et fin
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `plan_id`
+- `session_id`
+- `updated_fields[]`
+- `warnings[]`
+- `errors[]`
+
+### export-plan-garmin
+
+```bash
+python -m garmin_coach.export_plan_garmin --plan-id 42
+```
+
+Script d’export d’un plan local vers Garmin.
+
+Entrées :
+- `--plan-id` : identifiant du plan à exporter, obligatoire dans le cas simple
+- `--week-start` : alternative si on veut cibler le plan actif d’une semaine
+- `--dry-run` : simule l’export sans écrire côté Garmin ni en base
+- `--force` : réécrit l’export même si des séances ont déjà un `garmin_event_id`
+
+Sortie :
+- JSON avec le plan exporté, le nombre de séances traitées, les ids Garmin créés / mis à jour, les conflits éventuels
+
+Comportement backbone :
+- lit `training_plans` et `plan_sessions`
+- pousse les séances à Garmin
+- stocke `garmin_event_id`
+- passe les séances exportées au statut `exported`
+- reste idempotent autant que possible
+- remonte clairement les erreurs de mapping ou de validation
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `plan_id`
+- `week_start`, `week_end`
+- `sessions_seen`, `sessions_exported`, `sessions_skipped`, `sessions_failed`
+- `garmin_event_ids[]`
+- `warnings[]`, `errors[]`
+
+Contenu attendu :
+- plan exporté
+- séances exportées, ignorées ou en erreur
+- statut final de l’export
+- éventuels avertissements de conflit
+
+### get-constraints
+
+```bash
+python -m garmin_coach.get_constraints --scope training --status active
+```
+
+Tool de lecture pour récupérer les contraintes utiles à l’agent.
+
+Entrées :
+- `--scope` : filtre optionnel sur le périmètre
+- `--status` : filtre optionnel, par défaut les contraintes actives
+- `--limit` : optionnel, nombre max de contraintes
+- `--include-archived` : optionnel, inclut les contraintes archivées
+
+Sortie :
+- JSON avec la liste des contraintes et un résumé compact
+
+Contenu attendu :
+- contraintes de routine, de santé, de dispo, de préférence ou d’équipement
+- statut canonique
+- sévérité canonique
+- `raw_text` quand il faut conserver la formulation d’origine
+
 ## Contrat
 
 - sortie JSON
 - erreurs explicites si donnée manquante
 - pas de logique cachée dans le prompt
 - pas de SQL libre côté agent
+- les scripts de backbone doivent être idempotents
+- les scripts d’écriture doivent journaliser les conflits et les rejets
 
 ## Enums et validation
 
@@ -105,9 +437,10 @@ Les scripts d’écriture doivent utiliser des valeurs canoniques pour éviter l
 - `constraint.severity` → `low | medium | high`
 - `training_block.block_type` → `build | recover | peak | taper`
 - `training_plan.status` → `draft | active | sent | archived`
-- `plan_session.status` → `proposed | exported | done | skipped | canceled`
+- `plan_session.status` → `draft | proposed | exported | done | skipped | canceled`
 - `plan_review.outcome` → `kept | adapted | reset`
 - `plan_activity_matches.match_type` → `manual | inferred | imported`
+- `activity.source` → `garmin | manual`
 
 ## Convention
 

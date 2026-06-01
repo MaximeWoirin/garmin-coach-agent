@@ -12,9 +12,10 @@ On préfère quelques briques stables plutôt qu’un système trop large dès l
 La mémoire longue durée garde le contexte stable : objectifs, préférences, contraintes persistantes, leçons apprises.
 Elle ne remplace pas la base, mais elle complète les données structurées.
 
-### 2. Scripts
+### 2. Outils et scripts
 
-Des commandes CLI produisent des snapshots JSON simples et lisibles.
+Le découpage fonctionnel des outils est documenté dans [`tools.md`](tools.md).
+Les commandes CLI produisent des snapshots JSON simples et lisibles.
 Elles servent de contrat entre les données et l’agent.
 
 ### 3. Cron
