@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Point d'entrée CLI : set-plan-session-status
+exec python -m garmin_coach.set_plan_session_status "$@"
