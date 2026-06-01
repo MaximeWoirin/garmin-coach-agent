@@ -7,6 +7,7 @@
 - [docs/README.md](docs/README.md) — documentation index
 - [docs/spec/README.md](docs/spec/README.md) — objectives and macro view
 - [docs/spec/architecture.md](docs/spec/architecture.md) — architecture
+- [docs/spec/code.md](docs/spec/code.md) — Python code architecture and module layout
 - [docs/spec/database.md](docs/spec/database.md) — SQLite schema
 - [docs/spec/scripts.md](docs/spec/scripts.md) — scripts and CLI
 - [docs/spec/agent.md](docs/spec/agent.md) — agent contract and constraints
@@ -36,6 +37,12 @@ All scripts follow this pattern:
 python -m garmin_coach.<script-name> [--options]
 ```
 
+Authentication is part of the project contract too:
+
+```bash
+python -m garmin_coach.auth_garmin [--options]
+```
+
 Common flags: `--dry-run`, `--week-start`/`--week-end`, `--start`/`--end`, `--limit`, `--plan-id`, `--session-id`, `--goal-id`.
 
 **Output contract** — every script returns:
@@ -56,8 +63,8 @@ Plus domain-specific fields. Scripts must be **idempotent** and output **stable 
 |-------|---------|--------|
 | Activities | `sync-garmin`, `get-activities` | Partial |
 | Metrics | `sync-garmin`, `get-fitness-state` | Complete for V0 |
-| Constraints | `get-constraints` | Read-only; CRUD missing |
-| Plans | `get-current-plan`, `create-plan-draft`, `create-plan-session`, `set-plan-status`, `set-plan-session-status`, `delete-plan-session` | Schema done; scripts to implement |
+| Constraints | `get-constraints`, `create-constraint`, `delete-constraint`, `set-constraint-status` | Tooling specified |
+| Plans | `get-current-plan`, `create-plan-draft`, `create-plan-session`, `set-plan-status`, `set-plan-session-status`, `delete-plan-session`, `export-plan-garmin` | Tooling specified |
 
 ## Plan & Session State Machines
 
