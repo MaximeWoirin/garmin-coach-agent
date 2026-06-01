@@ -20,6 +20,36 @@ Cette page reste l’inventaire des scripts et de leur contrat d’entrée/sorti
 
 ## Scripts prévus
 
+### auth-garmin
+
+```bash
+python -m garmin_coach.auth_garmin
+```
+
+Script d’authentification Garmin pour le premier setup et les ré-authentifications.
+
+Entrées :
+- `--tokens-dir` : répertoire de stockage des tokens, optionnel
+- `--email` : email Garmin, optionnel si saisi interactif
+- `--password` : mot de passe Garmin, optionnel si saisi interactif
+- `--force-login` : force un login complet même si des tokens existent
+
+Sortie :
+- JSON avec le statut d’authentification et le chemin du store de tokens
+
+Comportement backbone :
+- utilise `python-garminconnect`
+- réalise le login interactif
+- gère le MFA si nécessaire
+- enregistre les tokens localement
+- sert au premier setup et au recovery si le refresh token n’est plus valable
+
+Interface JSON minimale :
+- `status` : `success | failed`
+- `tokens_path`
+- `warnings[]`
+- `errors[]`
+
 ### create-plan-draft
 
 ```bash

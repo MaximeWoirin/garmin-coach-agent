@@ -25,6 +25,7 @@ En V0, il sert surtout à déclencher `sync-garmin` tous les jours tôt le matin
 Son rôle est opérationnel, pas “intelligent”.
 
 L’intégration technique Garmin repose sur **`python-garminconnect`**.
+Un script `auth-garmin` gère le premier setup et les ré-authentifications éventuelles.
 
 ### 4. Base de données
 
