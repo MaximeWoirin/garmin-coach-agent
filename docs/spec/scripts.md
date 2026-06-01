@@ -8,6 +8,11 @@ Ils lisent la base, calculent le minimum utile, puis sortent du JSON.
 Cette page inventorie les scripts par état actuel.
 Le découpage fonctionnel détaillé vit dans [`tools.md`](tools.md).
 
+## Implémentation Garmin
+
+Pour toutes les intégrations Garmin, le projet doit utiliser **`python-garminconnect`**.
+On n’utilise pas `garth` directement.
+
 ## Vue rapide
 
 La cartographie métier vit dans [`tools.md`](tools.md).

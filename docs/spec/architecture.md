@@ -24,6 +24,8 @@ Un cron lance les jobs récurrents.
 En V0, il sert surtout à déclencher `sync-garmin` tous les jours tôt le matin, autour de 4h UTC, pour importer les activités de la veille et les daily metrics, avec un petit lookback si nécessaire.
 Son rôle est opérationnel, pas “intelligent”.
 
+L’intégration technique Garmin repose sur **`python-garminconnect`**.
+
 ### 4. Base de données
 
 SQLite stocke les activités, les métriques journalières, les contraintes actives, les plans générés et l’historique des synchronisations.
