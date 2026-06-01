@@ -663,6 +663,10 @@ Les champs de statut et de source doivent rester cohérents entre la DB et les s
 
 - `plan_sessions.status` → `draft | proposed | exported | done | skipped | canceled`
 
+### Contraintes
+
+- `constraints.status` → `active | inactive`
+
 ### Activités
 
 - `activities.source` → `garmin | manual`

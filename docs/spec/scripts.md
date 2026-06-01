@@ -385,6 +385,83 @@ Contenu attendu :
 - statut final de l’export
 - éventuels avertissements de conflit
 
+### create-constraint
+
+```bash
+python -m garmin_coach.create_constraint --type availability --scope training --start-date 2026-06-01 --raw-text "Pas dispo mardi soir"
+```
+
+Script de création d’une contrainte.
+
+Entrées :
+- `--goal-id` : identifiant d’objectif lié, optionnel
+- `--type` : type de contrainte, obligatoire
+- `--severity` : sévérité canonique, optionnelle, défaut `medium`
+- `--scope` : périmètre canonique, optionnel, défaut `training`
+- `--start-date` : date ISO `YYYY-MM-DD`, obligatoire
+- `--end-date` : date ISO `YYYY-MM-DD`, optionnelle
+- `--source` : origine, optionnelle, défaut `user`
+- `--confidence` : niveau de confiance, optionnel
+- `--raw-text` : formulation brute, obligatoire
+- `--tags-json` : tags supplémentaires, optionnel
+- `--notes-json` : notes structurées, optionnel
+- `--status` : statut initial, défaut `active`
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec la contrainte créée et les validations éventuelles
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `constraint_id`
+- `constraint_status`
+- `warnings[]`
+- `errors[]`
+
+### delete-constraint
+
+```bash
+python -m garmin_coach.delete_constraint --constraint-id 12
+```
+
+Script de suppression d’une contrainte.
+
+Entrées :
+- `--constraint-id` : identifiant de contrainte, obligatoire
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec la contrainte supprimée et les validations éventuelles
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `constraint_id`
+- `warnings[]`
+- `errors[]`
+
+### set-constraint-status
+
+```bash
+python -m garmin_coach.set_constraint_status --constraint-id 12 --status inactive
+```
+
+Script de changement de statut d’une contrainte.
+
+Entrées :
+- `--constraint-id` : identifiant de contrainte, obligatoire
+- `--status` : nouveau statut, obligatoire
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec la contrainte mise à jour et les validations éventuelles
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `constraint_id`
+- `constraint_status`
+- `warnings[]`
+- `errors[]`
+
 ### get-constraints
 
 ```bash
@@ -397,7 +474,6 @@ Entrées :
 - `--scope` : filtre optionnel sur le périmètre
 - `--status` : filtre optionnel, par défaut les contraintes actives
 - `--limit` : optionnel, nombre max de contraintes
-- `--include-archived` : optionnel, inclut les contraintes archivées
 
 Sortie :
 - JSON avec la liste des contraintes et un résumé compact
@@ -432,7 +508,7 @@ Les scripts d’écriture doivent utiliser des valeurs canoniques pour éviter l
 
 - `goal.priority` → `low | medium | high`
 - `constraint.type` → `availability | health | mental_state | preference | schedule | equipment`
-- `constraint.status` → `active | resolved | archived`
+- `constraint.status` → `active | inactive`
 - `constraint.scope` → `training | life | day | session`
 - `constraint.severity` → `low | medium | high`
 - `training_block.block_type` → `build | recover | peak | taper`
