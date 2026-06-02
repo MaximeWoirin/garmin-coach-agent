@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from garmin_coach.db import ensure_db, fetchone_dict
-from garmin_coach.enums import PlanStatus, SessionStatus
+from garmin_coach.enums import GoalPriority, GoalStatus, PlanStatus, SessionStatus
 from garmin_coach.jsonio import error_response, success_response
 
 
@@ -224,3 +224,110 @@ def _create_session_from_dict(conn: Any, plan_id: int, s: dict[str, Any]) -> Non
         ),
     )
     conn.commit()
+
+
+def create_goal(
+    primary_goal: str,
+    goal_code: str | None = None,
+    priority: str = "medium",
+    horizon_date: str | None = None,
+    target_event_name: str | None = None,
+    target_event_date: str | None = None,
+    target_event_priority: str | None = None,
+    status: str = "active",
+    raw_text: str | None = None,
+    metadata_json: str | None = None,
+    dry_run: bool = False,
+    db_path: Any = None,
+) -> dict[str, Any]:
+    """Crée un objectif d'entraînement dans training_goals.
+
+    Returns:
+        Réponse JSON avec l'objectif créé.
+    """
+    import re
+
+    # Validation primary_goal non vide
+    if not primary_goal or not primary_goal.strip():
+        return error_response(["primary_goal must not be empty."])
+
+    # Validation priority
+    try:
+        canonical_priority = GoalPriority(priority)
+    except ValueError:
+        return error_response([f"Invalid priority: {priority}. Valid: {[e.value for e in GoalPriority]}"])
+
+    # Validation target_event_priority
+    canonical_event_priority: GoalPriority | None = None
+    if target_event_priority is not None:
+        try:
+            canonical_event_priority = GoalPriority(target_event_priority)
+        except ValueError:
+            return error_response([f"Invalid target_event_priority: {target_event_priority}. Valid: {[e.value for e in GoalPriority]}"])
+
+    # Validation status
+    try:
+        canonical_status = GoalStatus(status)
+    except ValueError:
+        return error_response([f"Invalid status: {status}. Valid: {[e.value for e in GoalStatus]}"])
+
+    # Validation dates ISO YYYY-MM-DD
+    iso_date_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    if horizon_date is not None:
+        if not iso_date_re.match(horizon_date):
+            return error_response([f"Invalid horizon_date format: {horizon_date}. Expected YYYY-MM-DD."])
+
+    if target_event_date is not None:
+        if not iso_date_re.match(target_event_date):
+            return error_response([f"Invalid target_event_date format: {target_event_date}. Expected YYYY-MM-DD."])
+
+    # Validation metadata_json
+    meta_str: str | None = None
+    if metadata_json is not None:
+        try:
+            json.loads(metadata_json)
+            meta_str = metadata_json
+        except json.JSONDecodeError:
+            return error_response(["Invalid metadata_json format."])
+
+    if dry_run:
+        return success_response({
+            "goal_id": None,
+            "goal_status": canonical_status.value,
+            "dry_run": True,
+        }, warnings=["Dry run — nothing written."])
+
+    conn = ensure_db(db_path)
+
+    # Validation goal_code unique
+    if goal_code is not None:
+        existing = fetchone_dict(conn, "SELECT id FROM training_goals WHERE goal_code=?", (goal_code,))
+        if existing:
+            return error_response([f"goal_code '{goal_code}' already exists (goal_id={existing['id']})."])
+
+    conn.execute(
+        """INSERT INTO training_goals (
+            goal_code, primary_goal, priority, horizon_date,
+            target_event_name, target_event_date, target_event_priority,
+            status, raw_text, metadata_json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            goal_code,
+            primary_goal.strip(),
+            canonical_priority.value,
+            horizon_date,
+            target_event_name,
+            target_event_date,
+            canonical_event_priority.value if canonical_event_priority else None,
+            canonical_status.value,
+            raw_text,
+            meta_str,
+        ),
+    )
+    conn.commit()
+    goal_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    return success_response({
+        "goal_id": goal_id,
+        "goal_status": canonical_status.value,
+    })
