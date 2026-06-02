@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Point d'entrée CLI : create-plan-session
+exec python3 -m garmin_coach.create_plan_session "$@"

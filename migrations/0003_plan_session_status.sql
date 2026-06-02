@@ -1,0 +1,2 @@
+-- Ajout du statut draft par défaut pour plan_sessions (déjà géré en 0001, migration vide pour compatibilité)
+-- Cette migration assure la cohérence du schéma si le DEFAULT a été modifié.
