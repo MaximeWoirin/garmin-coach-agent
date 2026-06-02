@@ -1,6 +1,6 @@
 # Documentation
 
-La documentation vit ici. Le dépôt est volontairement documenté avant d’ajouter le code.
+La documentation vit ici. Le dépôt est resté documenté tôt dans sa vie, puis une première base Python a été ajoutée.
 
 ## Point d’entrée
 
@@ -16,3 +16,5 @@ La documentation vit ici. Le dépôt est volontairement documenté avant d’ajo
 - [`spec/tools.md`](spec/tools.md) — structure fonctionnelle des outils
 - [`spec/scripts.md`](spec/scripts.md) — inventaire des scripts et CLI
 - [`spec/agent.md`](spec/agent.md) — agent et contrat d’usage
+
+- [`../agent/README.md`](../agent/README.md) — documentation de travail de l’agent

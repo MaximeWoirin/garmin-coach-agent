@@ -39,6 +39,17 @@ On sépare clairement :
 │       ├── tools.md
 │       ├── scripts.md
 │       └── agent.md
+├── agent/
+│   ├── README.md
+│   ├── SYSTEM.md
+│   ├── SOUL.md
+│   ├── TOOLS.md
+│   ├── MEMORY.md
+│   └── playbooks/
+│       ├── daily_coaching.md
+│       ├── weekly_planning.md
+│       ├── sync_and_review.md
+│       └── fallback_no_garmin.md
 ├── bin/
 │   ├── auth-garmin
 │   ├── sync-garmin
@@ -95,6 +106,19 @@ Il doit contenir :
 - dépendances
 - version Python
 - éventuels scripts installables plus tard
+
+### `agent/`
+Contient la documentation d’orchestration LLM.
+
+Responsabilités :
+- rôle et règles du coach
+- ton et posture conversationnelle
+- mapping entre intentions et scripts
+- playbooks d’usage
+- mémoire stable versionnée
+
+Ce dossier ne doit pas devenir un fourre-tout.
+La mémoire runtime volatile doit vivre hors Git.
 
 ### `bin/`
 Contient les scripts d’entrée appelés par l’agent ou par cron.

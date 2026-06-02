@@ -29,3 +29,4 @@ La V0 repose sur cinq blocs :
 - [`database.md`](database.md)
 - [`scripts.md`](scripts.md)
 - [`agent.md`](agent.md)
+- [`../../agent/README.md`](../../agent/README.md) — dossier de travail de l’agent

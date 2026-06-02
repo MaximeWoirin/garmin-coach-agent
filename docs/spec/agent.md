@@ -17,6 +17,13 @@ L’agent :
 
 Le découpage fonctionnel des outils vit dans [`tools.md`](tools.md).
 
+La documentation opérationnelle de l’agent vit dans le dossier [`../../agent/`](../../agent/):
+- `SYSTEM.md`
+- `SOUL.md`
+- `TOOLS.md`
+- `MEMORY.md`
+- `playbooks/`
+
 ## Ce qu’on attend de lui
 
 - rester concret
@@ -29,3 +36,4 @@ Le découpage fonctionnel des outils vit dans [`tools.md`](tools.md).
 - SQL libre
 - surinterprétation
 - réponses longues quand une phrase suffit
+- mélange entre mémoire durable et état runtime
