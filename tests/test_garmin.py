@@ -300,6 +300,21 @@ def test_export_plan_does_not_reexport_exported(seeded_db: Path) -> None:
     assert result["sessions_skipped"] >= 1
 
 
+def test_export_plan_force_reexports_exported(seeded_db: Path) -> None:
+    """--force allows explicit re-export of an exported session."""
+    conn = get_connection(seeded_db)
+    conn.execute(
+        "UPDATE plan_sessions SET status='exported', garmin_event_id='gid123' WHERE id=1"
+    )
+    conn.commit()
+    conn.close()
+
+    result = export_plan(plan_id=1, dry_run=True, force=True, db_path=seeded_db)
+    assert result["status"] == "success"
+    assert result["sessions_exported"] == 1
+    assert result["sessions_skipped"] == 1
+
+
 def test_export_plan_date_filter_start(seeded_db: Path) -> None:
     """Start date filter excludes earlier sessions."""
     result = export_plan(plan_id=1, start_date="2026-06-04", dry_run=True, db_path=seeded_db)

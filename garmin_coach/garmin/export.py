@@ -102,16 +102,17 @@ def export_plan(
 
         # Vérifier si déjà exporté
         if session["status"] == SessionStatus.EXPORTED:
-            if session["garmin_event_id"] and not force:
+            if not force:
                 sessions_skipped += 1
-                warnings.append(
-                    f"Session {session['id']} already exported "
-                    f"(garmin_event_id={session['garmin_event_id']})"
-                )
+                if session["garmin_event_id"]:
+                    warnings.append(
+                        f"Session {session['id']} already exported "
+                        f"(garmin_event_id={session['garmin_event_id']})"
+                    )
                 continue
-
-        # Seules les séances `proposed` sont exportables
-        if session["status"] != SessionStatus.PROPOSED:
+        # Seules les séances `proposed` sont exportables par défaut.
+        # `--force` permet explicitement de réexporter une séance déjà `exported`.
+        elif session["status"] != SessionStatus.PROPOSED:
             sessions_skipped += 1
             continue
 
