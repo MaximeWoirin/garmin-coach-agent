@@ -12,6 +12,7 @@ Le principe est simple :
 
 ## Navigation
 
+- [`objectives.md`](tools/objectives.md)
 - [`activities.md`](tools/activities.md)
 - [`metrics.md`](tools/metrics.md)
 - [`constraints.md`](tools/constraints.md)
@@ -21,9 +22,10 @@ Le principe est simple :
 
 | Bloc | Rôle | État |
 |---|---|---|
+| Objectifs | Cap moyen terme, événement cible, niveau d’ambition | lecture OK, création à cadrer |
 | Activités | Séances réelles, import Garmin, lecture, réconciliation | à détailler |
 | Métriques physiologiques | Daily metrics, readiness, lecture, synchro | presque complet |
-| Contraintes | Contraintes de vie / training / santé / dispo | lecture seule pour l’instant |
+| Contraintes | Contraintes de vie / training / santé / dispo | lecture + écriture de base OK |
 | Plans | Plan hebdo, séances planifiées, export Garmin, revue | à structurer |
 
 ## Ce qu’on veut garder stable
@@ -46,6 +48,12 @@ Pour chaque bloc métier, on garde la même fiche :
 - **Questions ouvertes** : les choix qui restent à trancher
 
 ## Cartographie rapide
+
+### Objectifs
+
+- **Existant** : `get-goals`, table `training_goals`
+- **Manquant** : `create-goal`, lifecycle objectif
+- **Dépendances** : SQLite, blocs d’entraînement, contraintes liées
 
 ### Activités
 

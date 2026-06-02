@@ -363,6 +363,50 @@ Contenu attendu :
 - état courant du cycle de vie de l’objectif
 - éventuels champs `raw_text` si l’entrée humaine est plus nuancée que la valeur normalisée
 
+### create-goal
+
+```bash
+python -m garmin_coach.create_goal \
+  --primary-goal "Finir le marathon de Paris en moins de 4h" \
+  --priority high \
+  --horizon-date 2027-04-11 \
+  --target-event-name "Marathon de Paris" \
+  --target-event-date 2027-04-11 \
+  --raw-text "Je veux courir le marathon de Paris l’an prochain en moins de 4h"
+```
+
+Script de création d’un objectif d’entraînement structuré.
+
+Entrées :
+- `--goal-code` : code stable optionnel si on veut une clé lisible côté humain / scripts
+- `--primary-goal` : formulation canonique courte, obligatoire
+- `--priority` : priorité canonique `low | medium | high`, défaut `medium`
+- `--horizon-date` : date ISO `YYYY-MM-DD`, optionnelle
+- `--target-event-name` : nom d’événement cible, optionnel
+- `--target-event-date` : date ISO `YYYY-MM-DD`, optionnelle
+- `--target-event-priority` : priorité de l’événement cible, optionnelle
+- `--status` : statut initial, défaut `active`
+- `--raw-text` : formulation brute utilisateur, optionnelle mais fortement recommandée
+- `--metadata-json` : métadonnées structurées optionnelles
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec l’objectif créé, son statut, et les validations éventuelles
+
+Comportement backbone :
+- crée une ligne dans `training_goals`
+- valide les enums et les formats de date
+- garde la formulation brute quand elle existe
+- refuse les incohérences simples (date invalide, priorité inconnue, `goal_code` déjà pris)
+- reste léger : il stocke un objectif structuré, sans déduire seul un plan d’entraînement
+
+Interface JSON minimale :
+- `status` : `success | partial | failed`
+- `goal_id`
+- `goal_status`
+- `warnings[]`
+- `errors[]`
+
 ### export-plan-garmin
 
 ```bash
