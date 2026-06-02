@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 # Point d'entrée CLI : get-current-plan
-exec python -m garmin_coach.get_current_plan "$@"
+exec python3 -m garmin_coach.get_current_plan "$@"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from garmin_coach.db import ensure_db, fetchall_dicts
@@ -45,7 +45,7 @@ def sync(
     range_end = end_date.isoformat()
 
     # Enregistrer le début de sync
-    started_at = datetime.utcnow().isoformat()
+    started_at = datetime.now(UTC).isoformat()
     conn.execute(
         """INSERT INTO sync_runs (source, sync_type, started_at, status, range_start, range_end)
            VALUES ('garmin', 'daily', ?, 'running', ?, ?)""",

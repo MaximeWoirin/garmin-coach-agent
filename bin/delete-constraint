@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 # Point d'entrée CLI : delete-constraint
-exec python -m garmin_coach.delete_constraint "$@"
+exec python3 -m garmin_coach.delete_constraint "$@"
