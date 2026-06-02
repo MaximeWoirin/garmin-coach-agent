@@ -196,6 +196,37 @@ def test_export_plan_garmin_main_dry_run(seeded_db: Path) -> None:
             assert exc_info.value.code == 0
 
 
+def test_export_plan_garmin_main_with_dates(seeded_db: Path) -> None:
+    """Test export_plan_garmin CLI with date filters."""
+    with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):
+        with patch("sys.argv", [
+            "export_plan_garmin",
+            "--plan-id", "1",
+            "--start-date", "2026-06-03",
+            "--end-date", "2026-06-05",
+            "--dry-run",
+        ]):
+            from garmin_coach.export_plan_garmin import main
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+
+
+def test_export_plan_garmin_main_with_days_ahead(seeded_db: Path) -> None:
+    """Test export_plan_garmin CLI with --days-ahead."""
+    with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):
+        with patch("sys.argv", [
+            "export_plan_garmin",
+            "--plan-id", "1",
+            "--days-ahead", "2",
+            "--dry-run",
+        ]):
+            from garmin_coach.export_plan_garmin import main
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+
+
 def test_sync_garmin_main_no_tokens(seeded_db: Path, tmp_path: Path) -> None:
     """Test sync_garmin CLI with no tokens (should fail gracefully)."""
     tokens_dir = tmp_path / "empty_tokens"

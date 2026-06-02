@@ -78,10 +78,11 @@ def test_set_plan_status_draft_to_active(seeded_db: Path) -> None:
     assert result["plan_status"] == "active"
 
 
-def test_set_plan_status_active_to_sent(seeded_db: Path) -> None:
+def test_set_plan_status_active_to_sent_rejected(seeded_db: Path) -> None:
+    """SENT is no longer a valid target in the workflow."""
     result = set_plan_status(plan_id=1, status="sent", db_path=seeded_db)
-    assert result["status"] == "success"
-    assert result["plan_status"] == "sent"
+    assert result["status"] == "failed"
+    assert "Invalid transition" in result["errors"][0]
 
 
 def test_set_plan_status_invalid_transition(seeded_db: Path) -> None:
@@ -285,3 +286,68 @@ def test_delete_plan_session_dry_run(seeded_db: Path) -> None:
     result = delete_plan_session(plan_id=1, session_id=2, dry_run=True, db_path=seeded_db)
     assert result["status"] == "success"
     assert result["dry_run"] is True
+
+
+# --- Tests workflow progressif: suppression et statuts ---
+
+
+def test_delete_plan_session_draft_ok(seeded_db: Path) -> None:
+    """A draft session can be deleted."""
+    result = delete_plan_session(plan_id=1, session_id=2, db_path=seeded_db)
+    assert result["status"] == "success"
+
+
+def test_delete_plan_session_proposed_ok(seeded_db: Path) -> None:
+    """A proposed session can be deleted."""
+    result = delete_plan_session(plan_id=1, session_id=1, db_path=seeded_db)
+    assert result["status"] == "success"
+
+
+def test_delete_plan_session_exported_refused(seeded_db: Path) -> None:
+    """An exported session cannot be deleted."""
+    from garmin_coach.db import get_connection
+
+    conn = get_connection(seeded_db)
+    conn.execute("UPDATE plan_sessions SET status='exported' WHERE id=1")
+    conn.commit()
+    conn.close()
+
+    result = delete_plan_session(plan_id=1, session_id=1, db_path=seeded_db)
+    assert result["status"] == "failed"
+    assert "Cannot delete" in result["errors"][0]
+
+
+def test_set_plan_status_sent_to_active_compat(seeded_db: Path) -> None:
+    """Legacy plans in SENT status can migrate to ACTIVE."""
+    from garmin_coach.db import get_connection
+
+    conn = get_connection(seeded_db)
+    conn.execute("UPDATE training_plans SET status='sent' WHERE id=1")
+    conn.commit()
+    conn.close()
+
+    result = set_plan_status(plan_id=1, status="active", db_path=seeded_db)
+    assert result["status"] == "success"
+    assert result["plan_status"] == "active"
+
+
+def test_set_plan_status_no_implicit_export(seeded_db: Path) -> None:
+    """Activating a plan does not export sessions to Garmin."""
+    result = set_plan_status(plan_id=2, status="active", cascade_sessions=True, db_path=seeded_db)
+    assert result["status"] == "success"
+    # Sessions go from draft to proposed, not to exported
+    for change in result["session_status_changes"]:
+        assert change["new_status"] == "proposed"
+
+
+def test_recreate_session_after_delete(seeded_db: Path) -> None:
+    """After deleting a local session, a new one can be created."""
+    result = delete_plan_session(plan_id=1, session_id=1, db_path=seeded_db)
+    assert result["status"] == "success"
+
+    result = create_plan_session(
+        plan_id=1, planned_date="2026-06-03", activity_type="running",
+        duration_min=50, db_path=seeded_db,
+    )
+    assert result["status"] == "success"
+    assert result["session_id"] is not None

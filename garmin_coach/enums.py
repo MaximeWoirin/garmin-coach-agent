@@ -46,7 +46,7 @@ class BlockType(StrEnum):
 class PlanStatus(StrEnum):
     DRAFT = "draft"
     ACTIVE = "active"
-    SENT = "sent"
+    SENT = "sent"  # Deprecated: kept for backward-compat reading only
     ARCHIVED = "archived"
 
 

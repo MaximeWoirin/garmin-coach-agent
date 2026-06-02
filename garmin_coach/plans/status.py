@@ -10,10 +10,12 @@ from garmin_coach.jsonio import error_response, success_response
 
 
 # Transitions valides pour les plans
+# Note: SENT is deprecated. Plans no longer transition to SENT.
+# Publication is tracked at session level (proposed -> exported).
 _PLAN_TRANSITIONS: dict[PlanStatus, set[PlanStatus]] = {
     PlanStatus.DRAFT: {PlanStatus.ACTIVE, PlanStatus.ARCHIVED},
-    PlanStatus.ACTIVE: {PlanStatus.SENT, PlanStatus.ARCHIVED},
-    PlanStatus.SENT: {PlanStatus.ARCHIVED},
+    PlanStatus.ACTIVE: {PlanStatus.ARCHIVED},
+    PlanStatus.SENT: {PlanStatus.ACTIVE, PlanStatus.ARCHIVED},  # compat: migrate away from sent
     PlanStatus.ARCHIVED: set(),
 }
 

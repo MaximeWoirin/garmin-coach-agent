@@ -1,9 +1,19 @@
-"""Export de plans vers Garmin Connect."""
+"""Export de plans vers Garmin Connect.
+
+L'export est progressif et piloté au niveau session :
+- seules les séances `proposed` sont exportables
+- les séances `draft` ne sont pas exportées (pas encore validées)
+- les séances `exported` ne sont pas réexportées (sauf --force)
+- les séances `done`, `skipped`, `canceled` sont ignorées
+
+L'export supporte un horizon court via --start-date / --end-date / --days-ahead.
+"""
 
 from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import date, timedelta
 from typing import Any
 
 from garmin_coach.db import ensure_db, fetchall_dicts, fetchone_dict
@@ -15,16 +25,26 @@ from garmin_coach.jsonio import error_response, partial_response, success_respon
 def export_plan(
     plan_id: int | None = None,
     week_start: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    days_ahead: int | None = None,
     dry_run: bool = False,
     force: bool = False,
     db_path: Any = None,
     tokens_dir: Any = None,
 ) -> dict[str, Any]:
-    """Exporte un plan local vers Garmin.
+    """Exporte les séances proposed d'un plan vers Garmin.
+
+    Seules les séances en statut `proposed` sont exportées.
+    Les séances `draft` ne sont pas considérées comme prêtes.
+    Les séances déjà `exported` sont ignorées sauf si force=True.
 
     Args:
         plan_id: Identifiant du plan à exporter.
         week_start: Alternative pour cibler le plan actif d'une semaine.
+        start_date: Date de début de l'horizon d'export (ISO YYYY-MM-DD).
+        end_date: Date de fin de l'horizon d'export (ISO YYYY-MM-DD).
+        days_ahead: Nombre de jours à exporter à partir d'aujourd'hui.
         dry_run: Simule l'export sans écrire.
         force: Réécrit l'export même si des séances ont un garmin_event_id.
         db_path: Chemin de la base SQLite.
@@ -42,7 +62,10 @@ def export_plan(
     if not plan:
         return error_response(["Plan not found."])
 
-    # Charger les séances exportables
+    # Calculer l'horizon de dates
+    date_start, date_end = _resolve_date_range(start_date, end_date, days_ahead)
+
+    # Charger les séances du plan
     sessions = fetchall_dicts(
         conn,
         """SELECT * FROM plan_sessions WHERE plan_id = ?
@@ -56,6 +79,7 @@ def export_plan(
     sessions_seen = len(sessions)
     sessions_exported = 0
     sessions_skipped = 0
+    sessions_ignored = 0
     sessions_failed = 0
     garmin_event_ids: list[str] = []
 
@@ -66,16 +90,28 @@ def export_plan(
             return error_response([f"Garmin client error: {exc}"])
 
     for session in sessions:
-        # Vérifier si déjà exporté
-        if session["garmin_event_id"] and not force:
-            sessions_skipped += 1
-            warnings.append(
-                f"Session {session['id']} already exported (garmin_event_id={session['garmin_event_id']})"
-            )
-            continue
+        # Appliquer le filtre de plage de dates
+        if date_start or date_end:
+            session_date = session["planned_date"]
+            if date_start and session_date < date_start:
+                sessions_ignored += 1
+                continue
+            if date_end and session_date > date_end:
+                sessions_ignored += 1
+                continue
 
-        # Vérifier le statut
-        if session["status"] in (SessionStatus.DONE, SessionStatus.SKIPPED, SessionStatus.CANCELED):
+        # Vérifier si déjà exporté
+        if session["status"] == SessionStatus.EXPORTED:
+            if session["garmin_event_id"] and not force:
+                sessions_skipped += 1
+                warnings.append(
+                    f"Session {session['id']} already exported "
+                    f"(garmin_event_id={session['garmin_event_id']})"
+                )
+                continue
+
+        # Seules les séances `proposed` sont exportables
+        if session["status"] != SessionStatus.PROPOSED:
             sessions_skipped += 1
             continue
 
@@ -87,8 +123,6 @@ def export_plan(
         # Construire le payload Garmin
         try:
             payload = _build_workout_payload(session)
-            # Tentative d'export via l'API Garmin
-            # Note: l'API exacte dépend de python-garminconnect
             event_id = _push_to_garmin(client, payload, session)  # type: ignore[arg-type]
 
             if event_id:
@@ -115,6 +149,7 @@ def export_plan(
         "sessions_seen": sessions_seen,
         "sessions_exported": sessions_exported,
         "sessions_skipped": sessions_skipped,
+        "sessions_ignored": sessions_ignored,
         "sessions_failed": sessions_failed,
         "garmin_event_ids": garmin_event_ids,
     }
@@ -122,6 +157,19 @@ def export_plan(
     if errors:
         return partial_response(data, warnings=warnings, errors=errors)
     return success_response(data, warnings=warnings)
+
+
+def _resolve_date_range(
+    start_date: str | None,
+    end_date: str | None,
+    days_ahead: int | None,
+) -> tuple[str | None, str | None]:
+    """Résout les paramètres de plage de dates en bornes ISO."""
+    if days_ahead is not None:
+        today = date.today().isoformat()
+        end = (date.today() + timedelta(days=days_ahead)).isoformat()
+        return start_date or today, end_date or end
+    return start_date, end_date
 
 
 def _find_plan(conn: sqlite3.Connection, plan_id: int | None, week_start: str | None) -> dict[str, Any] | None:
