@@ -1,52 +1,37 @@
 ---
 name: set-constraint-status
-description: Use when a constraint changes state — resolved after healing, paused temporarily, or reactivated.
+description: Use to switch a stored constraint between active and inactive.
 ---
 
 # set-constraint-status
 
 ## Quand l'utiliser
 
-- L'utilisateur annonce qu'une blessure est guérie → `resolved`
-- Une contrainte est suspendue temporairement (ex: vacances reportées) → `paused`
-- Une contrainte résolue réapparaît → `active`
-- Mise à jour de routine après qu'une période de contrainte prend fin
+- Une contrainte ne s'applique plus
+- Une contrainte redevient active
+- Il faut conserver l'historique sans supprimer la ligne
 
 ## Commande
 
 ```bash
 python -m garmin_coach.set_constraint_status \
   --constraint-id N \
-  --status STATUS \
+  --status active|inactive \
   [--dry-run]
 ```
 
-## Statuts valides
+## Contrat réel
 
-| Statut | Quand l'utiliser |
-|---|---|
-| `active` | La contrainte s'applique maintenant |
-| `paused` | Temporairement suspendue |
-| `resolved` | Définitivement levée (garde l'historique) |
+- Les seuls statuts gérés par l'implémentation actuelle sont `active` et `inactive`.
+- `inactive` renseigne `resolved_at` côté base.
+- La sortie renvoie `constraint_status`, pas `old_status` / `new_status`.
 
-## Sortie
+## Sortie typique
 
 ```json
 {
   "status": "success",
   "constraint_id": 5,
-  "old_status": "active",
-  "new_status": "resolved"
+  "constraint_status": "inactive"
 }
 ```
-
-## Exemple typique
-
-```bash
-# L'utilisateur dit "mon genou va mieux, je peux reprendre la course"
-python -m garmin_coach.set_constraint_status --constraint-id 5 --status resolved
-```
-
-## À faire ensuite
-
-Après avoir résolu une contrainte de santé, revoir le plan en cours si les séances avaient été adaptées.

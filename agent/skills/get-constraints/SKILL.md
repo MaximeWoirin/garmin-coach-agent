@@ -1,54 +1,41 @@
 ---
 name: get-constraints
-description: Use before building a training plan, or when the user mentions an injury, travel, or any limitation affecting their training.
+description: Use to read stored constraints before planning or adaptation.
 ---
 
 # get-constraints
 
 ## Quand l'utiliser
 
-- Toujours avant de créer un plan (`create-plan-draft`)
-- Quand l'utilisateur mentionne une blessure, vacances, surcharge de travail
-- Pour vérifier quelles contraintes sont encore actives
-- Si une séance semble incompatible avec la réalité de l'utilisateur
+- Avant la planification
+- Avant d'adapter une semaine
+- Pour voir les contraintes encore actives
 
 ## Commande
 
 ```bash
-python -m garmin_coach.get_constraints [--plan-id N] [--session-id N] [--limit N]
+python -m garmin_coach.get_constraints \
+  [--scope training|life|day|session] \
+  [--status active|inactive] \
+  [--limit N]
 ```
 
-## Paramètres clés
+## Contrat réel
 
-| Paramètre | Description |
-|---|---|
-| `--plan-id` | Contraintes d'un plan spécifique |
-| `--session-id` | Contraintes d'une séance spécifique |
-| `--limit` | Nombre max de résultats |
+- Le filtre réel est `--scope`, pas `--plan-id` / `--session-id`.
+- `--status` vaut `active` par défaut.
+- La sortie contient `constraints` et `summary`.
 
-## Sortie (par contrainte)
+## Sortie typique
 
 ```json
 {
-  "constraint_id": 3,
-  "type": "health",
-  "severity": "medium",
-  "status": "active",
-  "scope": "training",
-  "start_date": "2025-01-10",
-  "end_date": "2025-01-24",
-  "raw_text": "Douleur genou gauche, éviter la course",
-  "tags": ["knee", "no-running"]
+  "status": "success",
+  "constraints": [],
+  "summary": {
+    "count": 0,
+    "by_type": {},
+    "by_severity": {}
+  }
 }
 ```
-
-## Types de contraintes
-
-| Type | Exemples |
-|---|---|
-| `health` | Blessure, maladie, douleur |
-| `availability` | Vacances, déplacement pro |
-| `schedule` | Événement ponctuel, réunion |
-| `mental_state` | Surmenage, motivation basse |
-| `preference` | Refus d'un type de séance |
-| `equipment` | Accès piscine coupé, vélo en réparation |

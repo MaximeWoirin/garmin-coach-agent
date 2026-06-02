@@ -1,74 +1,48 @@
 ---
 name: create-constraint
-description: Use immediately when the user mentions any limitation — injury, travel, fatigue, schedule conflict — that affects their training.
+description: Use immediately when the user mentions an injury, availability issue, preference, or any constraint that should affect planning.
 ---
 
 # create-constraint
 
 ## Quand l'utiliser
 
-- L'utilisateur mentionne une blessure, douleur, ou contre-indication médicale
-- L'utilisateur annonce des vacances, déplacements, ou indisponibilités
-- L'utilisateur exprime une préférence forte (ex: "pas de séances le mercredi")
-- L'utilisateur signale un état mental ou fatigue inhabituelle
-- **Capturer immédiatement** : ne pas attendre la prochaine session de planification
+- Blessure, maladie, douleur
+- Déplacement, vacances, indisponibilité
+- Préférence forte ou contrainte matérielle
+- Tout contexte qui doit devenir une entrée structurée en base
 
 ## Commande
 
 ```bash
 python -m garmin_coach.create_constraint \
   --type TYPE \
-  --severity SEVERITY \
+  --start-date YYYY-MM-DD \
   --raw-text "..." \
-  [--scope SCOPE] \
-  [--start-date YYYY-MM-DD] \
+  [--goal-id N] \
+  [--severity low|medium|high] \
+  [--scope training|life|day|session] \
   [--end-date YYYY-MM-DD] \
-  [--tags-json '["tag1","tag2"]'] \
+  [--source SOURCE] \
+  [--confidence FLOAT] \
+  [--tags-json '["tag"]'] \
+  [--notes-json '{"note":"..."}'] \
+  [--status active|inactive] \
   [--dry-run]
 ```
 
-## Paramètres clés
+## Points importants
 
-| Paramètre | Requis | Description |
-|---|---|---|
-| `--type` | Oui | Catégorie (voir tableau ci-dessous) |
-| `--severity` | Oui | `low` / `medium` / `high` |
-| `--raw-text` | Oui | Description libre en langage naturel |
-| `--scope` | Non | `training` / `life` / `day` / `session` |
-| `--start-date` | Non | Début (défaut : aujourd'hui) |
-| `--end-date` | Non | Fin (vide = indéfinie) |
+- `--start-date` est requis.
+- `--severity`, `--scope`, `--status` ont des valeurs par défaut valides.
+- `--notes-json` et `--tags-json` doivent être du JSON sérialisé.
 
-## Types de contraintes
-
-| Type | Exemples |
-|---|---|
-| `health` | Genou douloureux, rhume, fatigue musculaire |
-| `availability` | Vacances, déplacement, week-end chargé |
-| `schedule` | Réunion le soir, enfant malade |
-| `mental_state` | Surmenage, démotivation, stress élevé |
-| `preference` | Refuse la natation, préfère ne pas courir le lundi |
-| `equipment` | Vélo en réparation, piscine fermée |
-
-## Sortie
+## Sortie typique
 
 ```json
 {
   "status": "success",
   "constraint_id": 5,
-  "type": "health",
-  "severity": "medium",
-  "status": "active"
+  "constraint_status": "active"
 }
-```
-
-## Exemple typique
-
-```bash
-python -m garmin_coach.create_constraint \
-  --type health \
-  --severity medium \
-  --raw-text "Douleur genou gauche depuis lundi, pas de course pendant 2 semaines" \
-  --start-date 2025-01-13 \
-  --end-date 2025-01-26 \
-  --tags-json '["knee","no-running"]'
 ```

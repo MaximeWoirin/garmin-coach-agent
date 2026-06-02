@@ -1,45 +1,46 @@
 ---
 name: sync-garmin
-description: Use when Garmin data may be stale, before reading activities or metrics, or when the user reports missing workouts.
+description: Use to import Garmin activities and daily metrics into the local database.
 ---
 
 # sync-garmin
 
 ## Quand l'utiliser
 
-- Au début d'une session hebdomadaire de planification
-- Quand l'utilisateur mentionne une activité récente non visible
-- Quand `get-activities` ou `get-fitness-state` renvoient des données obsolètes
-- Jamais en boucle : une seule sync par session suffit
+- Avant lecture des activités récentes
+- Avant lecture des métriques de forme
+- Quand l'utilisateur dit qu'une activité Garmin manque
 
 ## Commande
 
 ```bash
-python -m garmin_coach.sync_garmin [--week-start YYYY-MM-DD] [--week-end YYYY-MM-DD] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+python -m garmin_coach.sync_garmin \
+  [--start YYYY-MM-DD] \
+  [--end YYYY-MM-DD] \
+  [--lookback-days N]
 ```
 
-## Paramètres clés
+## Contrat réel
 
-| Paramètre | Description |
-|---|---|
-| `--week-start` / `--week-end` | Sync d'une semaine précise |
-| `--start` / `--end` | Plage de dates libre |
-| _(aucun)_ | Sync de la semaine courante |
+- Les vrais flags sont `--start`, `--end`, `--lookback-days`.
+- Il n'existe pas de `--week-start` / `--week-end`.
+- Sans dates explicites, le script synchronise une fenêtre calculée depuis `lookback_days`.
+- La sortie contient notamment `range_start`, `range_end`, `activities_*`, `daily_metrics_*`.
 
-## Sortie
+## Sortie typique
 
 ```json
 {
   "status": "success",
-  "synced_days": 7,
-  "activities_imported": 3,
-  "warnings": []
+  "source": "garmin",
+  "range_start": "2026-06-01",
+  "range_end": "2026-06-03",
+  "activities_seen": 0,
+  "activities_inserted": 0,
+  "activities_updated": 0,
+  "daily_metrics_seen": 0,
+  "daily_metrics_upserted": 0,
+  "reconciled_sessions": 0,
+  "matched_activities": 0
 }
-```
-
-## Exemple typique
-
-```bash
-# Sync de la semaine courante avant de planifier
-python -m garmin_coach.sync_garmin
 ```

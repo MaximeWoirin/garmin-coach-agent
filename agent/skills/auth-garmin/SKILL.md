@@ -1,39 +1,47 @@
 ---
 name: auth-garmin
-description: Use when Garmin authentication fails, credentials are expired, or first-time setup is required.
+description: Use when Garmin authentication fails, first-time setup is required, or stored tokens must be refreshed.
 ---
 
 # auth-garmin
 
 ## Quand l'utiliser
 
-- Erreur d'authentification Garmin sur n'importe quel autre script
-- Premier démarrage de l'agent (pas de token stocké)
-- L'utilisateur signale que Garmin ne répond plus
-
-## Ne pas utiliser
-
-- En routine : l'authentification est persistée, pas besoin de re-auth à chaque session
-- Si le problème vient d'autre chose (réseau, API down)
+- Premier setup Garmin Connect
+- `sync-garmin` / `export-plan-garmin` échoue sur un problème de token
+- L'utilisateur veut forcer une reconnexion
 
 ## Commande
 
 ```bash
-python -m garmin_coach.auth_garmin
+python -m garmin_coach.auth_garmin \
+  [--tokens-dir DIR] \
+  [--email EMAIL] \
+  [--password PASSWORD] \
+  [--force-login]
 ```
 
-Le script est interactif : il demande les identifiants Garmin Connect (email + mot de passe) et stocke le token localement.
+## Contrat réel
 
-## Sortie
+- Sans `--force-login`, le script essaie d'abord de réutiliser les tokens existants.
+- Avec `--force-login`, il force un login complet.
+- Si `--force-login` est présent sans `--email` / `--password`, le script demande les identifiants en interactif.
+
+## Sortie typique
 
 ```json
 {
   "status": "success",
-  "authenticated": true
+  "tokens_path": "data/tokens",
+  "warnings": []
 }
 ```
 
-## Gestion d'erreur
+## Échec typique
 
-Si l'auth échoue → demander à l'utilisateur de vérifier ses identifiants Garmin Connect.  
-Ne pas relancer en boucle.
+```json
+{
+  "status": "failed",
+  "errors": ["Email and password required for initial login."]
+}
+```

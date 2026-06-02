@@ -1,20 +1,20 @@
 ---
 name: delete-plan-session
-description: Use to permanently remove a session from a plan when it was added by mistake or needs to be replaced.
+description: Use to delete a non-exported, non-completed plan session.
 ---
 
 # delete-plan-session
 
 ## Quand l'utiliser
 
-- Une séance a été créée par erreur (mauvais jour, doublon)
-- L'utilisateur demande à modifier une séance (supprimer + recréer)
-- Restructuration du plan avant activation
+- Séance créée par erreur
+- Remplacement d'une séance encore éditable
+- Adaptation locale avant export Garmin
 
 ## Ne pas utiliser
 
-- Pour marquer une séance annulée → utiliser `set-plan-session-status --status skipped`
-- Si la séance est déjà `exported` ou `done` (le script refusera)
+- Pour une séance déjà `exported`
+- Pour une séance déjà `done`
 
 ## Commande
 
@@ -25,26 +25,17 @@ python -m garmin_coach.delete_plan_session \
   [--dry-run]
 ```
 
-## Paramètres clés
+## Contrat réel
 
-| Paramètre | Requis | Description |
-|---|---|---|
-| `--plan-id` | Oui | ID du plan parent |
-| `--session-id` | Oui | ID de la séance à supprimer |
-| `--dry-run` | Non | Simule sans supprimer |
+- Le script refuse explicitement les séances `exported` et `done`.
+- Les séances `draft`, `proposed`, `skipped`, `canceled` restent supprimables.
 
-## Sortie
+## Sortie typique
 
 ```json
 {
   "status": "success",
   "plan_id": 42,
-  "session_id": 7,
-  "warnings": []
+  "session_id": 7
 }
 ```
-
-## Précaution
-
-Toujours utiliser `--dry-run` d'abord pour confirmer que c'est la bonne séance.  
-La suppression est irréversible.

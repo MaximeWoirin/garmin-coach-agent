@@ -22,7 +22,7 @@ Le principe est simple :
 
 | Bloc | Rôle | État |
 |---|---|---|
-| Objectifs | Cap moyen terme, événement cible, niveau d’ambition | lecture OK, création à cadrer |
+| Objectifs | Cap moyen terme, événement cible, niveau d’ambition | lecture + création OK |
 | Activités | Séances réelles, import Garmin, lecture, réconciliation | à détailler |
 | Métriques physiologiques | Daily metrics, readiness, lecture, synchro | presque complet |
 | Contraintes | Contraintes de vie / training / santé / dispo | lecture + écriture de base OK |
@@ -51,8 +51,8 @@ Pour chaque bloc métier, on garde la même fiche :
 
 ### Objectifs
 
-- **Existant** : `get-goals`, table `training_goals`
-- **Manquant** : `create-goal`, lifecycle objectif
+- **Existant** : `get-goals`, `create-goal`, table `training_goals`
+- **Manquant** : lifecycle objectif (`set-goal-status` éventuel)
 - **Dépendances** : SQLite, blocs d’entraînement, contraintes liées
 
 ### Activités
@@ -81,7 +81,7 @@ Pour chaque bloc métier, on garde la même fiche :
 
 ## Authentification Garmin
 
-- `auth-garmin` fait partie du socle à implémenter
+- `auth-garmin` fait partie du socle déjà implémenté
 - il sert au premier setup et aux ré-authentifications si le refresh token expire ou est révoqué
 - les scripts métier (`sync-garmin`, `export-plan-garmin`) consomment ensuite les tokens existants
 

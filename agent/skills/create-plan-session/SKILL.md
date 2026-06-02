@@ -1,15 +1,15 @@
 ---
 name: create-plan-session
-description: Use after create-plan-draft to add each individual training session to the weekly plan.
+description: Use after create-plan-draft to add one session to a plan.
 ---
 
 # create-plan-session
 
 ## Quand l'utiliser
 
-- Après avoir créé le plan avec `create-plan-draft`
-- Pour chaque séance de la semaine (une par appel)
-- Pour ajouter une séance de rattrapage ou de remplacement
+- Ajouter une séance à un plan existant
+- Compléter un draft semaine par semaine
+- Remplacer une séance non exportée via delete + create
 
 ## Commande
 
@@ -19,29 +19,26 @@ python -m garmin_coach.create_plan_session \
   --planned-date YYYY-MM-DD \
   --activity-type TYPE \
   --duration-min N \
-  [--intensity INTENSITY] \
-  [--target-hr-low N] [--target-hr-high N] \
+  [--planned-time HH:MM] \
+  [--intensity TEXT] \
+  [--target-hr-low N] \
+  [--target-hr-high N] \
   [--target-pace-sec-per-km N] \
   [--target-rpe N] \
+  [--status draft|proposed|exported|done|skipped|canceled] \
+  [--tags-json '["tag"]'] \
   [--notes "..."] \
+  [--workout-payload-json '{"workoutName":"..."}'] \
   [--dry-run]
 ```
 
-## Paramètres clés
+## Points importants
 
-| Paramètre | Requis | Description |
-|---|---|---|
-| `--plan-id` | Oui | ID du plan parent |
-| `--planned-date` | Oui | Date de la séance (YYYY-MM-DD) |
-| `--activity-type` | Oui | Type (`running`, `cycling`, `swimming`, `strength`, etc.) |
-| `--duration-min` | Oui | Durée cible en minutes |
-| `--intensity` | Non | `easy`, `moderate`, `hard`, `race` |
-| `--target-hr-low/high` | Non | Zone FC cible |
-| `--target-pace-sec-per-km` | Non | Allure cible (ex: 360 = 6min/km) |
-| `--target-rpe` | Non | Perception d'effort 1-10 |
-| `--notes` | Non | Description de la séance |
+- `--plan-id`, `--planned-date`, `--activity-type`, `--duration-min` sont requis.
+- `--status` existe vraiment et vaut `draft` par défaut.
+- `--workout-payload-json` permet de fournir un payload Garmin déjà préparé.
 
-## Sortie
+## Sortie typique
 
 ```json
 {
@@ -51,9 +48,3 @@ python -m garmin_coach.create_plan_session \
   "session_status": "draft"
 }
 ```
-
-## Bonnes pratiques
-
-- Toujours inclure `--notes` avec une description claire (l'utilisateur la verra dans Garmin)
-- Préférer des cibles FC aux allures pour les débutants
-- Vérifier la cohérence des dates avec `--week-start`/`--week-end` du plan

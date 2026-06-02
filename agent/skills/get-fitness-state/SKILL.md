@@ -1,55 +1,41 @@
 ---
 name: get-fitness-state
-description: Use when assessing current fatigue, readiness, or fitness level before building or adjusting a training plan.
+description: Use to read daily metrics on an explicit date range before planning or adaptation.
 ---
 
 # get-fitness-state
 
 ## Quand l'utiliser
 
-- Avant de créer un nouveau plan (estimer la forme de départ)
-- Si l'utilisateur mentionne fatigue, récup difficile, ou pics de forme
-- Contrôle hebdomadaire de la charge accumulée
-- Après une période de maladie ou absence
+- Avant de construire une semaine
+- Après fatigue, maladie, baisse de forme
+- Pour inspecter la tendance récente
 
 ## Commande
 
 ```bash
-python -m garmin_coach.get_fitness_state [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+python -m garmin_coach.get_fitness_state \
+  --start YYYY-MM-DD \
+  --end YYYY-MM-DD \
+  [--limit N]
 ```
 
-## Paramètres clés
+## Contrat réel
 
-| Paramètre | Description |
-|---|---|
-| `--start` / `--end` | Plage d'analyse (défaut : 7 derniers jours) |
+- `--start` et `--end` sont requis.
+- `--limit` existe vraiment.
+- La sortie contient `period`, `daily_metrics`, `summary`.
 
-## Sortie (par jour)
+## Sortie typique
 
 ```json
 {
-  "date": "2025-01-15",
-  "resting_hr": 52,
-  "hrv": 68,
-  "sleep_score": 82,
-  "body_battery": 74,
-  "stress_avg": 28,
-  "steps": 9500
+  "status": "success",
+  "period": {"start": "2026-06-01", "end": "2026-06-08"},
+  "daily_metrics": [],
+  "summary": {
+    "days": 0,
+    "signal": "no_data"
+  }
 }
-```
-
-## Interprétation
-
-| Signal | Faible → Attention | Élevé → Bon signe |
-|---|---|---|
-| HRV | <50 | >70 |
-| Body Battery matin | <30 | >80 |
-| Sleep score | <60 | >85 |
-| FC repos | Hausse persistante | Stable/en baisse |
-
-## Exemple typique
-
-```bash
-# État de forme avant planification du lundi
-python -m garmin_coach.get_fitness_state
 ```

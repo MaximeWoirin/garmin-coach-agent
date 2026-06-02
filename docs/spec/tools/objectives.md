@@ -8,13 +8,12 @@ compétition cible, défi personnel, horizon de progression, niveau d’ambition
 ## Existant
 
 - table `training_goals`
-- script de lecture `get-goals`
+- scripts `get-goals` et `create-goal`
 - liaison possible avec les contraintes (`constraints.goal_id`)
 - liaison possible avec les blocs d’entraînement (`training_blocks.goal_id`)
 
 ## Ce qui manque
 
-- création structurée d’un objectif
 - archivage / fermeture explicite d’un objectif devenu obsolète
 - éventuelle mise à jour d’un objectif existant si on veut éviter le delete + recreate
 - règles de coexistence entre plusieurs objectifs actifs
@@ -53,4 +52,4 @@ Le backbone V0 du bloc objectifs repose sur ces scripts :
 - faut-il autoriser plusieurs objectifs `active` en parallèle ou un seul objectif principal ?
 - faut-il distinguer priorité d’objectif et priorité d’événement cible ?
 - faut-il ajouter un champ normalisé de type d’objectif (`race`, `performance`, `consistency`, etc.) ou garder `primary_goal` libre en V0 ?
-- faut-il un vrai `set-goal-status` dès maintenant, ou suffit-il de créer puis d’archiver plus tard ?
+- faut-il un vrai `set-goal-status` maintenant, ou le couple `create-goal` + future archive suffit-il ?

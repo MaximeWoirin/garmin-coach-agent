@@ -1,53 +1,56 @@
 ---
 name: export-plan-garmin
-description: Use to push the validated training plan to Garmin Connect so sessions appear in the user's Garmin device.
+description: Use to export plan sessions to Garmin Connect on a short horizon.
 ---
 
 # export-plan-garmin
 
 ## Quand l'utiliser
 
-- Après avoir validé le plan (`set-plan-status --status active`)
-- Quand l'utilisateur dit "envoie le plan sur ma montre" ou "je veux voir mes séances sur Garmin"
-- Toujours en fin de cycle de construction : create-plan-draft → create-plan-session × N → set-plan-status active → **export**
+- Après validation locale d'un plan (`draft -> active`)
+- Pour pousser seulement l'horizon court vers Garmin
+- Quand l'utilisateur veut voir les prochaines séances sur Garmin
 
-## Prérequis
+## Règles de workflow
 
-1. Le plan doit être en statut `active`
-2. `auth-garmin` doit être valide (token actif)
-3. Les séances doivent avoir des dates et durées renseignées
+- L'export est piloté au niveau **session**.
+- Par défaut, seules les séances `proposed` sont exportables.
+- Les séances `draft` ne partent pas.
+- Les séances `exported` ne repartent pas, sauf `--force`.
+- `set-plan-status` ne publie pas sur Garmin ; il valide seulement le cycle local du plan.
 
 ## Commande
 
 ```bash
 python -m garmin_coach.export_plan_garmin \
-  --plan-id N \
-  [--session-id N] \
-  [--dry-run]
+  (--plan-id N | --week-start YYYY-MM-DD) \
+  [--start-date YYYY-MM-DD] \
+  [--end-date YYYY-MM-DD] \
+  [--days-ahead N] \
+  [--dry-run] \
+  [--force]
 ```
 
-## Paramètres clés
+## Contrat réel
 
-| Paramètre | Requis | Description |
-|---|---|---|
-| `--plan-id` | Oui | ID du plan à exporter |
-| `--session-id` | Non | Exporter une seule séance (partiel) |
-| `--dry-run` | Non | Simule sans appeler l'API Garmin |
+- Il faut fournir `--plan-id` **ou** `--week-start`.
+- `--start-date`, `--end-date`, `--days-ahead` bornent l'horizon d'export.
+- `--force` permet une réexport explicite des séances déjà `exported`.
+- La sortie contient `sessions_seen`, `sessions_exported`, `sessions_skipped`, `sessions_ignored`, `sessions_failed`, `garmin_event_ids`.
 
-## Sortie
+## Sortie typique
 
 ```json
 {
   "status": "success",
   "plan_id": 42,
-  "exported_sessions": [7, 8, 9],
-  "garmin_workout_ids": ["abc123", "def456", "ghi789"],
-  "warnings": []
+  "week_start": "2026-06-16",
+  "week_end": "2026-06-22",
+  "sessions_seen": 5,
+  "sessions_exported": 2,
+  "sessions_skipped": 2,
+  "sessions_ignored": 1,
+  "sessions_failed": 0,
+  "garmin_event_ids": ["dry-run-7", "dry-run-8"]
 }
 ```
-
-## Après l'export
-
-- Appeler `set-plan-status --status exported` pour mettre à jour le statut
-- Les séances exportées passent automatiquement en statut `exported`
-- En cas d'échec partiel, les `warnings[]` listent les séances non exportées

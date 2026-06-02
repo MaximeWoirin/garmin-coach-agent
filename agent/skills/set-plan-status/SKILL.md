@@ -1,44 +1,46 @@
 ---
 name: set-plan-status
-description: Use to transition a plan through its lifecycle — validate a draft, activate it, or archive a finished week.
+description: Use to move a plan through its local lifecycle only.
 ---
 
 # set-plan-status
 
 ## Quand l'utiliser
 
-- Après avoir terminé la construction d'un plan (`draft` → `active`)
-- Avant l'export Garmin (le plan doit être `active`)
-- En fin de semaine pour archiver (`active` → `archived`)
+- `draft -> active` pour valider localement une semaine
+- `draft -> archived` pour abandonner un draft
+- `active -> archived` pour clore la semaine
+
+## Règle importante
+
+Le statut du plan est **local**.
+
+- Publication Garmin = statut de **session** (`proposed -> exported`)
+- `PlanStatus.SENT` reste seulement un état legacy de compatibilité lecture / transition
+- Le workflow cible normal est `draft`, `active`, `archived`
 
 ## Commande
 
 ```bash
 python -m garmin_coach.set_plan_status \
   --plan-id N \
-  --status STATUS \
+  --status draft|active|sent|archived \
   [--cascade-sessions] \
   [--dry-run]
 ```
 
-## Paramètres clés
-
-| Paramètre | Requis | Description |
-|---|---|---|
-| `--plan-id` | Oui | ID du plan |
-| `--status` | Oui | Nouveau statut |
-| `--cascade-sessions` | Non | Propage le statut aux séances (ex: `draft`→`proposed`) |
-
 ## Transitions valides
 
-```
-draft → active      (validation du plan)
-active → exported   (après export Garmin)
-active → archived   (fin de semaine sans export)
-exported → archived (fin de semaine après export)
-```
+- `draft -> active|archived`
+- `active -> archived`
+- `sent -> active|archived` (compat legacy)
 
-## Sortie
+## Cascade sessions
+
+- `draft -> active` avec `--cascade-sessions` fait `draft -> proposed` pour les séances draft
+- `* -> archived` avec `--cascade-sessions` annule les séances `draft` / `proposed`
+
+## Sortie typique
 
 ```json
 {
@@ -49,11 +51,4 @@ exported → archived (fin de semaine après export)
     {"session_id": 7, "old_status": "draft", "new_status": "proposed"}
   ]
 }
-```
-
-## Exemple typique
-
-```bash
-# Valider le plan et passer les séances en "proposed"
-python -m garmin_coach.set_plan_status --plan-id 42 --status active --cascade-sessions
 ```

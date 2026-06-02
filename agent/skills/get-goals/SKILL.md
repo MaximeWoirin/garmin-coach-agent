@@ -1,46 +1,40 @@
 ---
 name: get-goals
-description: Use before building any training plan or when the user asks to review their current objectives.
+description: Use to read training goals stored in the local database.
 ---
 
 # get-goals
 
 ## Quand l'utiliser
 
-- Toujours avant de créer un plan (`create-plan-draft`)
-- Quand l'utilisateur mentionne un objectif ou une course cible
-- Pour vérifier si un objectif est encore actif ou a changé de priorité
+- Avant de créer un plan
+- Quand l'utilisateur demande ses objectifs actifs
+- Pour vérifier priorité et horizon des objectifs
 
 ## Commande
 
 ```bash
-python -m garmin_coach.get_goals [--plan-id N] [--goal-id N] [--limit N]
+python -m garmin_coach.get_goals \
+  [--status active|archived|completed|canceled] \
+  [--limit N] \
+  [--include-archived]
 ```
 
-## Paramètres clés
+## Contrat réel
 
-| Paramètre | Description |
-|---|---|
-| `--plan-id` | Filtrer les objectifs d'un plan spécifique |
-| `--goal-id` | Récupérer un objectif précis |
-| `--limit` | Nombre max de résultats |
+- Les vrais flags sont `--status`, `--limit`, `--include-archived`.
+- Il n'existe pas de `--plan-id` ni `--goal-id`.
+- La sortie contient `goals` et `summary`.
 
-## Sortie (par objectif)
+## Sortie typique
 
 ```json
 {
-  "goal_id": 1,
-  "goal_code": "marathon-2025",
-  "primary_goal": "Finir le marathon de Paris en moins de 4h",
-  "priority": 1,
-  "horizon_date": "2025-04-13",
-  "target_event_name": "Marathon de Paris",
-  "target_event_date": "2025-04-13",
-  "status": "active"
+  "status": "success",
+  "goals": [],
+  "summary": {
+    "count": 0,
+    "by_priority": {}
+  }
 }
 ```
-
-## À noter
-
-Les objectifs sont en base de données (pas dans `USER.md`). C'est la source de vérité.  
-Si l'utilisateur exprime un nouvel objectif → utiliser `create-goal` (⚠️ script à venir).

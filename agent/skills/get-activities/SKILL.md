@@ -1,49 +1,44 @@
 ---
 name: get-activities
-description: Use when reviewing completed workouts, analyzing training load, or preparing the weekly coaching debrief.
+description: Use to read imported Garmin activities on an explicit date range.
 ---
 
 # get-activities
 
 ## Quand l'utiliser
 
-- Bilan de semaine : voir ce qui a été réalisé vs planifié
-- Analyse de la charge avant de proposer un nouveau plan
-- L'utilisateur mentionne une séance récente à analyser
+- Bilan d'entraînement
+- Analyse de charge récente
+- Vérification qu'une activité a bien été synchronisée
 
 ## Commande
 
 ```bash
-python -m garmin_coach.get_activities [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--limit N]
+python -m garmin_coach.get_activities \
+  --start YYYY-MM-DD \
+  --end YYYY-MM-DD \
+  [--limit N] \
+  [--activity-type TYPE]
 ```
 
-## Paramètres clés
+## Contrat réel
 
-| Paramètre | Description |
-|---|---|
-| `--start` / `--end` | Plage de dates (défaut : 7 derniers jours) |
-| `--limit` | Nombre max d'activités retournées |
+- `--start` et `--end` sont requis.
+- `--activity-type` filtre côté lecture.
+- La sortie contient `period`, `activities`, `summary`.
 
-## Sortie (par activité)
+## Sortie typique
 
 ```json
 {
-  "activity_id": "...",
-  "activity_date": "2025-01-15",
-  "activity_type": "running",
-  "duration_seconds": 3600,
-  "distance_meters": 10000,
-  "avg_hr": 145,
-  "max_hr": 168,
-  "avg_pace_sec_per_km": 360,
-  "training_load": 85,
-  "notes": "..."
+  "status": "success",
+  "period": {"start": "2026-06-01", "end": "2026-06-08"},
+  "activities": [],
+  "summary": {
+    "count": 0,
+    "total_duration_min": 0,
+    "total_distance_km": 0.0,
+    "total_calories_kcal": 0
+  }
 }
-```
-
-## Exemple typique
-
-```bash
-# Bilan de la semaine écoulée
-python -m garmin_coach.get_activities --start 2025-01-13 --end 2025-01-19
 ```
