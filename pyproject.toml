@@ -2,7 +2,7 @@
 name = "garmin-coach-agent"
 version = "0.1.0"
 description = "Assistant local qui transforme des données Garmin en recommandations d'entraînement"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "garminconnect>=0.2.25",
 ]
@@ -23,7 +23,7 @@ build-backend = "hatchling.build"
 packages = ["garmin_coach"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 100
 
 [tool.ruff.lint]
@@ -34,7 +34,7 @@ testpaths = ["tests"]
 addopts = "--cov=garmin_coach --cov-report=term-missing --cov-fail-under=90"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
