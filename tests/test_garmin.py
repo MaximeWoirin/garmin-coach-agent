@@ -150,7 +150,9 @@ def test_export_plan_no_plan_id_no_week(seeded_db: Path) -> None:
 def test_export_plan_dry_run(seeded_db: Path) -> None:
     result = export_plan(plan_id=1, dry_run=True, db_path=seeded_db)
     assert result["status"] == "success"
-    assert result["sessions_exported"] == 2
+    # Only session 1 (proposed) is exported; session 2 (draft) is skipped
+    assert result["sessions_exported"] == 1
+    assert result["sessions_skipped"] == 1
 
 
 def test_export_plan_by_week_start(seeded_db: Path) -> None:
@@ -250,3 +252,100 @@ def test_sync_partial_errors(mock_get_client: MagicMock, seeded_db: Path) -> Non
     )
     assert result["status"] == "partial"
     assert any("Activities sync error" in e for e in result["errors"])
+
+
+# --- Tests export workflow progressif ---
+
+
+def test_export_plan_only_proposed_sessions(seeded_db: Path) -> None:
+    """Only sessions with status 'proposed' are exported."""
+    result = export_plan(plan_id=1, dry_run=True, db_path=seeded_db)
+    assert result["status"] == "success"
+    # Session 1 = proposed, session 2 = draft
+    assert result["sessions_exported"] == 1
+    assert result["sessions_skipped"] == 1
+
+
+def test_export_plan_ignores_draft_sessions(seeded_db: Path) -> None:
+    """Draft sessions are not exported."""
+    # Plan 2 has only a draft session
+    result = export_plan(plan_id=2, dry_run=True, db_path=seeded_db)
+    assert result["status"] == "success"
+    assert result["sessions_exported"] == 0
+    assert result["sessions_skipped"] == 1
+
+
+def test_export_plan_ignores_done_skipped_canceled(seeded_db: Path) -> None:
+    """Sessions with terminal status are skipped."""
+    conn = get_connection(seeded_db)
+    conn.execute("UPDATE plan_sessions SET status='done' WHERE id=1")
+    conn.commit()
+    conn.close()
+
+    result = export_plan(plan_id=1, dry_run=True, db_path=seeded_db)
+    assert result["sessions_exported"] == 0
+
+
+def test_export_plan_does_not_reexport_exported(seeded_db: Path) -> None:
+    """Already exported sessions are not re-exported without --force."""
+    conn = get_connection(seeded_db)
+    conn.execute(
+        "UPDATE plan_sessions SET status='exported', garmin_event_id='gid123' WHERE id=1"
+    )
+    conn.commit()
+    conn.close()
+
+    result = export_plan(plan_id=1, dry_run=True, db_path=seeded_db)
+    assert result["sessions_exported"] == 0
+    assert result["sessions_skipped"] >= 1
+
+
+def test_export_plan_force_reexports_exported(seeded_db: Path) -> None:
+    """--force allows explicit re-export of an exported session."""
+    conn = get_connection(seeded_db)
+    conn.execute(
+        "UPDATE plan_sessions SET status='exported', garmin_event_id='gid123' WHERE id=1"
+    )
+    conn.commit()
+    conn.close()
+
+    result = export_plan(plan_id=1, dry_run=True, force=True, db_path=seeded_db)
+    assert result["status"] == "success"
+    assert result["sessions_exported"] == 1
+    assert result["sessions_skipped"] == 1
+
+
+def test_export_plan_date_filter_start(seeded_db: Path) -> None:
+    """Start date filter excludes earlier sessions."""
+    result = export_plan(plan_id=1, start_date="2026-06-04", dry_run=True, db_path=seeded_db)
+    assert result["status"] == "success"
+    # Session 1 is on 2026-06-03 (before filter), session 2 is draft (skipped)
+    assert result["sessions_exported"] == 0
+    assert result["sessions_ignored"] == 1
+
+
+def test_export_plan_date_filter_end(seeded_db: Path) -> None:
+    """End date filter excludes later sessions."""
+    result = export_plan(plan_id=1, end_date="2026-06-03", dry_run=True, db_path=seeded_db)
+    assert result["status"] == "success"
+    # Session 1 is on 2026-06-03, session 2 is on 2026-06-05 (after end)
+    assert result["sessions_exported"] == 1
+    assert result["sessions_ignored"] == 1
+
+
+def test_export_plan_days_ahead(seeded_db: Path) -> None:
+    """days_ahead filter computes date range from today."""
+    # Both test sessions are in the future relative to today (2026),
+    # so with days_ahead=0 (today only), they're likely excluded
+    result = export_plan(plan_id=1, days_ahead=0, dry_run=True, db_path=seeded_db)
+    assert result["status"] == "success"
+    assert "sessions_ignored" in result
+
+
+def test_export_plan_sessions_ignored_counter(seeded_db: Path) -> None:
+    """The sessions_ignored counter tracks sessions outside the date range."""
+    result = export_plan(
+        plan_id=1, start_date="2099-01-01", dry_run=True, db_path=seeded_db
+    )
+    assert result["sessions_ignored"] == 2
+    assert result["sessions_exported"] == 0

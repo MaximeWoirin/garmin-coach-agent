@@ -411,26 +411,36 @@ Interface JSON minimale :
 
 ```bash
 python -m garmin_coach.export_plan_garmin --plan-id 42
+python -m garmin_coach.export_plan_garmin --plan-id 42 --days-ahead 2
+python -m garmin_coach.export_plan_garmin --plan-id 42 --start-date 2026-06-03 --end-date 2026-06-05
 ```
 
-Script d’export d’un plan local vers Garmin.
+Script d'export progressif d'un plan local vers Garmin.
+
+Seules les séances en statut `proposed` sont exportées. Les séances `draft` ne sont pas
+considérées comme prêtes. Les séances déjà `exported` sont ignorées sauf avec `--force`.
 
 Entrées :
 - `--plan-id` : identifiant du plan à exporter, obligatoire dans le cas simple
-- `--week-start` : alternative si on veut cibler le plan actif d’une semaine
-- `--dry-run` : simule l’export sans écrire côté Garmin ni en base
-- `--force` : réécrit l’export même si des séances ont déjà un `garmin_event_id`
+- `--week-start` : alternative si on veut cibler le plan actif d'une semaine
+- `--start-date` : date ISO `YYYY-MM-DD`, début de l'horizon d'export
+- `--end-date` : date ISO `YYYY-MM-DD`, fin de l'horizon d'export
+- `--days-ahead` : nombre de jours à exporter à partir d'aujourd'hui
+- `--dry-run` : simule l'export sans écrire côté Garmin ni en base
+- `--force` : réécrit l'export même si des séances ont déjà un `garmin_event_id`
 
 Sortie :
-- JSON avec le plan exporté, le nombre de séances traitées, les ids Garmin créés / mis à jour, les conflits éventuels
+- JSON avec le plan exporté, le nombre de séances traitées, les ids Garmin créés, les compteurs détaillés
 
 Comportement backbone :
 - lit `training_plans` et `plan_sessions`
-- cible en priorité les séances `proposed`
+- n'exporte que les séances `proposed` (pas `draft`, pas `done`/`skipped`/`canceled`)
+- ne réexporte pas les séances `exported` sauf avec `--force`
 - pousse les séances à Garmin
 - stocke `garmin_event_id`
 - passe les séances exportées au statut `exported`
-- doit évoluer vers un export filtré par horizon court / plage de dates
+- supporte un export progressif via horizon court / plage de dates
+- ne change pas le statut global du plan
 - reste idempotent autant que possible
 - remonte clairement les erreurs de mapping ou de validation
 
@@ -438,15 +448,9 @@ Interface JSON minimale :
 - `status` : `success | partial | failed`
 - `plan_id`
 - `week_start`, `week_end`
-- `sessions_seen`, `sessions_exported`, `sessions_skipped`, `sessions_failed`
+- `sessions_seen`, `sessions_exported`, `sessions_skipped`, `sessions_ignored`, `sessions_failed`
 - `garmin_event_ids[]`
 - `warnings[]`, `errors[]`
-
-Contenu attendu :
-- plan exporté
-- séances exportées, ignorées ou en erreur
-- statut final de l’export
-- éventuels avertissements de conflit
 
 ### create-constraint
 
@@ -575,7 +579,7 @@ Les scripts d’écriture doivent utiliser des valeurs canoniques pour éviter l
 - `constraint.scope` → `training | life | day | session`
 - `constraint.severity` → `low | medium | high`
 - `training_block.block_type` → `build | recover | peak | taper`
-- `training_plans.status` → `draft | active | sent | archived`
+- `training_plans.status` → `draft | active | archived`
 - `plan_session.status` → `draft | proposed | exported | done | skipped | canceled`
 - `plan_review.outcome` → `kept | adapted | reset`
 - `plan_activity_matches.match_type` → `manual | inferred | imported`
