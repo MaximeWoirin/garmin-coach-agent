@@ -9,6 +9,13 @@ class GoalPriority(StrEnum):
     HIGH = "high"
 
 
+class GoalStatus(StrEnum):
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    COMPLETED = "completed"
+    CANCELED = "canceled"
+
+
 class ConstraintType(StrEnum):
     AVAILABILITY = "availability"
     HEALTH = "health"
