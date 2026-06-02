@@ -26,6 +26,10 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=garmin_coach --cov-report=term-missing --cov-fail-under=90"
+
 [tool.mypy]
 python_version = "3.11"
 strict = true
