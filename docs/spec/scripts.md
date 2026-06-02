@@ -157,6 +157,18 @@ Interface JSON minimale :
 - `warnings[]`
 - `errors[]`
 
+## Workflow recommandé
+
+Le workflow cible est :
+- validation locale du plan et des séances
+- publication Garmin séparée
+- export progressif sur horizon court plutôt qu’export complet immédiat
+
+Conséquence :
+- `set-plan-status` sert à valider localement
+- `export-plan-garmin` sert à publier
+- `sync-garmin` sert à réconcilier le réalisé
+
 ### set-plan-status
 
 ```bash
@@ -176,8 +188,9 @@ Sortie :
 
 Comportement backbone :
 - change le statut du plan
+- sert d’abord à la validation locale
 - peut faire passer les séances de `draft` à `proposed` quand le plan est validé
-- peut figer les séances au moment de l’export ou de l’archivage selon la transition
+- ne doit pas impliquer automatiquement un export complet vers Garmin
 - conserve la cohérence du workflow sans casser l’historique
 
 Interface JSON minimale :
@@ -369,9 +382,11 @@ Sortie :
 
 Comportement backbone :
 - lit `training_plans` et `plan_sessions`
+- cible en priorité les séances `proposed`
 - pousse les séances à Garmin
 - stocke `garmin_event_id`
 - passe les séances exportées au statut `exported`
+- doit évoluer vers un export filtré par horizon court / plage de dates
 - reste idempotent autant que possible
 - remonte clairement les erreurs de mapping ou de validation
 

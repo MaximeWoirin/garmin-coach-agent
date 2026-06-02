@@ -56,6 +56,10 @@ Pour obtenir :
 - `set-plan-status`
 - `set-plan-session-status`
 
+Outils à ajouter côté produit :
+- `update-plan-session`
+- `replace-plan-session`
+
 ### Contraintes
 - `create-constraint`
 - `delete-constraint`
@@ -77,6 +81,14 @@ Pour obtenir :
 4. `get-current-plan`
 5. `get-constraints`
 6. proposition d’ajustement
+
+## Workflow de validation / export
+
+- le plan peut être validé localement avant publication Garmin
+- les séances `proposed` sont considérées prêtes mais pas forcément publiées
+- l’export Garmin doit idéalement ne publier que l’horizon court
+- une séance `proposed` est éditable
+- une séance `exported` doit être remplacée proprement, pas mutée librement
 
 ## Règles de prudence
 

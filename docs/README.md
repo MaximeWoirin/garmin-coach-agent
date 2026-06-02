@@ -16,5 +16,6 @@ La documentation vit ici. Le dépôt est resté documenté tôt dans sa vie, pui
 - [`spec/tools.md`](spec/tools.md) — structure fonctionnelle des outils
 - [`spec/scripts.md`](spec/scripts.md) — inventaire des scripts et CLI
 - [`spec/agent.md`](spec/agent.md) — agent et contrat d’usage
+- [`spec/export-workflow.md`](spec/export-workflow.md) — workflow de validation locale et export Garmin
 
 - [`../agent/README.md`](../agent/README.md) — documentation de travail de l’agent
