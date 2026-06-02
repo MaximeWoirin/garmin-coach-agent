@@ -1,85 +1,50 @@
-# TOOLS
+# TOOLS.md — Garmin Coach Agent
 
-Cette page décrit quels scripts appeler selon l’intention.
+Scripts disponibles via `python -m garmin_coach.<module>`. Pour chaque script, un skill associé est dans `agent/skills/`.
 
-Règle générale :
-- d’abord lire
-- ensuite décider
-- écrire seulement si la mission demande une modification explicite
+## Données Garmin
 
-## Rafraîchir les données
+| Script | Module | Skill | Usage |
+|---|---|---|---|
+| `auth-garmin` | `auth_garmin` | [auth-garmin](skills/auth-garmin/SKILL.md) | Authentification Garmin Connect (premier démarrage ou token expiré) |
+| `sync-garmin` | `sync_garmin` | [sync-garmin](skills/sync-garmin/SKILL.md) | Sync des activités et métriques depuis Garmin |
+| `get-activities` | `get_activities` | [get-activities](skills/get-activities/SKILL.md) | Lecture des activités sur une période |
+| `get-fitness-state` | `get_fitness_state` | [get-fitness-state](skills/get-fitness-state/SKILL.md) | État de forme (HRV, FC repos, sommeil, body battery) |
 
-### `sync-garmin`
-À appeler quand :
-- les données récentes sont absentes
-- la dernière sync est ancienne
-- on veut comparer plan prévu vs activités réelles
+## Objectifs
 
-Ne pas appeler si :
-- on sait déjà que l’auth Garmin n’est pas disponible
-- la mission porte seulement sur une lecture historique locale
+| Script | Module | Skill | Usage |
+|---|---|---|---|
+| `get-goals` | `get_goals` | [get-goals](skills/get-goals/SKILL.md) | Lecture des objectifs actifs |
+| `create-goal` | `create_goal` | _(à venir)_ | ⚠️ Module Python non encore créé |
 
-## Lire l’état sportif récent
+## Contraintes
 
-### `get-fitness-state`
-Pour obtenir :
-- métriques journalières
-- signal synthétique simple
-- résumé de tendance
+| Script | Module | Skill | Usage |
+|---|---|---|---|
+| `get-constraints` | `get_constraints` | [get-constraints](skills/get-constraints/SKILL.md) | Lecture des contraintes actives |
+| `create-constraint` | `create_constraint` | [create-constraint](skills/create-constraint/SKILL.md) | Ajout d'une contrainte (blessure, indispo, préférence) |
+| `set-constraint-status` | `set_constraint_status` | [set-constraint-status](skills/set-constraint-status/SKILL.md) | Changer le statut d'une contrainte |
+| `delete-constraint` | `delete_constraint` | [delete-constraint](skills/delete-constraint/SKILL.md) | Supprimer une contrainte créée par erreur |
 
-### `get-activities`
-Pour obtenir :
-- activités réellement effectuées
-- volume récent
-- type de séances faites
+## Plans d'entraînement
 
-## Lire le contexte de planification
+| Script | Module | Skill | Usage |
+|---|---|---|---|
+| `get-current-plan` | `get_current_plan` | [get-current-plan](skills/get-current-plan/SKILL.md) | Lire le plan actif |
+| `create-plan-draft` | `create_plan_draft` | [create-plan-draft](skills/create-plan-draft/SKILL.md) | Créer la coquille d'un nouveau plan |
+| `create-plan-session` | `create_plan_session` | [create-plan-session](skills/create-plan-session/SKILL.md) | Ajouter une séance à un plan |
+| `set-plan-status` | `set_plan_status` | [set-plan-status](skills/set-plan-status/SKILL.md) | Valider, activer ou archiver un plan |
+| `set-plan-session-status` | `set_plan_session_status` | [set-plan-session-status](skills/set-plan-session-status/SKILL.md) | Marquer une séance done/skipped/exported |
+| `delete-plan-session` | `delete_plan_session` | [delete-plan-session](skills/delete-plan-session/SKILL.md) | Supprimer une séance créée par erreur |
+| `export-plan-garmin` | `export_plan_garmin` | [export-plan-garmin](skills/export-plan-garmin/SKILL.md) | Pousser le plan vers Garmin Connect |
 
-### `get-current-plan`
-Pour obtenir :
-- plan actif ou draft
-- séances prévues
-- statut du plan
+## Flags communs
 
-### `get-constraints`
-Pour obtenir :
-- contraintes actives
-- disponibilité
-- préférences ou limites courantes
-
-## Écrire / ajuster
-
-### Plans
-- `create-plan-draft`
-- `create-plan-session`
-- `delete-plan-session`
-- `set-plan-status`
-- `set-plan-session-status`
-
-### Contraintes
-- `create-constraint`
-- `delete-constraint`
-- `set-constraint-status`
-
-## Séquence recommandée par défaut
-
-### Pour conseiller une séance du jour
-1. `get-fitness-state`
-2. `get-activities`
-3. `get-current-plan`
-4. `get-constraints`
-5. réponse coach
-
-### Pour revoir un plan de semaine
-1. `sync-garmin` si nécessaire
-2. `get-fitness-state`
-3. `get-activities`
-4. `get-current-plan`
-5. `get-constraints`
-6. proposition d’ajustement
-
-## Règles de prudence
-
-- ne pas modifier un plan sans demande explicite
-- ne pas archiver / envoyer un plan automatiquement
-- ne pas supposer qu’une séance prévue a été faite sans réconciliation explicite
+| Flag | Effet |
+|---|---|
+| `--dry-run` | Simule sans écrire ni appeler l'API |
+| `--limit N` | Limite le nombre de résultats |
+| `--start` / `--end` | Plage de dates (format `YYYY-MM-DD`) |
+| `--plan-id N` | Cible un plan spécifique |
+| `--session-id N` | Cible une séance spécifique |
