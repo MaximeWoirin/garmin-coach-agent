@@ -41,7 +41,6 @@ Scripts disponibles via `python -m garmin_coach.<module>`. Pour chaque script, u
 
 ## Flags communs
 
-<<<<<<< HEAD
 | Flag | Effet |
 |---|---|
 | `--dry-run` | Simule sans écrire ni appeler l'API |
@@ -49,59 +48,3 @@ Scripts disponibles via `python -m garmin_coach.<module>`. Pour chaque script, u
 | `--start` / `--end` | Plage de dates (format `YYYY-MM-DD`) |
 | `--plan-id N` | Cible un plan spécifique |
 | `--session-id N` | Cible une séance spécifique |
-=======
-### `get-constraints`
-Pour obtenir :
-- contraintes actives
-- disponibilité
-- préférences ou limites courantes
-
-## Écrire / ajuster
-
-### Plans
-- `create-plan-draft`
-- `create-plan-session`
-- `delete-plan-session`
-- `set-plan-status`
-- `set-plan-session-status`
-
-Outils à ajouter côté produit :
-- `update-plan-session`
-- `replace-plan-session`
-
-### Contraintes
-- `create-constraint`
-- `delete-constraint`
-- `set-constraint-status`
-
-## Séquence recommandée par défaut
-
-### Pour conseiller une séance du jour
-1. `get-fitness-state`
-2. `get-activities`
-3. `get-current-plan`
-4. `get-constraints`
-5. réponse coach
-
-### Pour revoir un plan de semaine
-1. `sync-garmin` si nécessaire
-2. `get-fitness-state`
-3. `get-activities`
-4. `get-current-plan`
-5. `get-constraints`
-6. proposition d’ajustement
-
-## Workflow de validation / export
-
-- le plan peut être validé localement avant publication Garmin
-- les séances `proposed` sont considérées prêtes mais pas forcément publiées
-- l’export Garmin doit idéalement ne publier que l’horizon court
-- une séance `proposed` est éditable
-- une séance `exported` doit être remplacée proprement, pas mutée librement
-
-## Règles de prudence
-
-- ne pas modifier un plan sans demande explicite
-- ne pas archiver / envoyer un plan automatiquement
-- ne pas supposer qu’une séance prévue a été faite sans réconciliation explicite
->>>>>>> 4e6d244c0a95716b818a582c79986d81645ca3e2
