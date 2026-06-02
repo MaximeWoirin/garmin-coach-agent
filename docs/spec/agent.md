@@ -11,11 +11,14 @@ L’agent :
 - appelle les scripts du bloc métier concerné selon sa mission
 - lit les snapshots génériques produits par ces scripts
 - appelle `sync-garmin` si les données doivent être rafraîchies
+- traite l’export Garmin comme un workflow de publication séparé
 - répond avec une recommandation courte et prudente si le signal est faible
 
 ## Référence de structure
 
 Le découpage fonctionnel des outils vit dans [`tools.md`](tools.md).
+
+Le workflow recommandé de validation locale + export progressif vit dans [`export-workflow.md`](export-workflow.md).
 
 La documentation opérationnelle de l’agent vit dans le dossier [`../../agent/`](../../agent/):
 - `SYSTEM.md`

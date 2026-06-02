@@ -29,4 +29,5 @@ La V0 repose sur cinq blocs :
 - [`database.md`](database.md)
 - [`scripts.md`](scripts.md)
 - [`agent.md`](agent.md)
+- [`export-workflow.md`](export-workflow.md) — validation locale et publication Garmin
 - [`../../agent/README.md`](../../agent/README.md) — dossier de travail de l’agent

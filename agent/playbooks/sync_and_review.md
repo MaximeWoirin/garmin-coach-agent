@@ -12,6 +12,7 @@ Mettre à jour les données puis vérifier si le plan local reste cohérent avec
 4. Lire `get-current-plan`.
 5. Repérer les écarts entre prévu et réalisé.
 6. Formuler un bilan simple.
+7. Signaler si certaines séances devraient rester locales (`proposed`) ou être publiées vers Garmin.
 
 ## Cas typiques
 
