@@ -28,6 +28,30 @@ Le projet est documenté avant le code. La documentation reste la source de vér
 └── tests/
 ```
 
+## Installation OpenClaw
+
+Pour installer les fichiers agent + skills dans un workspace OpenClaw local :
+
+```bash
+./scripts/install-openclaw-agent.sh
+```
+
+Le script :
+- copie les fichiers `agent/*` au bon endroit dans `~/.openclaw/workspace`
+- copie les playbooks dans `playbooks/`
+- copie les skills dans `skills/`
+- crée un runtime Python managé dans `~/.openclaw/workspace/.garmin-coach-agent/.venv`
+- réécrit les commandes des skills pour pointer vers ce runtime
+- sauvegarde les fichiers remplacés dans `.garmin-coach-agent/backups/<timestamp>/`
+
+Options utiles :
+
+```bash
+./scripts/install-openclaw-agent.sh --dry-run
+./scripts/install-openclaw-agent.sh --workspace /chemin/vers/workspace
+./scripts/install-openclaw-agent.sh --no-bootstrap
+```
+
 ## Statut
 
 - code applicatif : base V0 implémentée
