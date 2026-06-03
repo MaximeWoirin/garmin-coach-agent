@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from garmin_coach.db import ensure_db, fetchall_dicts, fetchone_dict
+from garmin_coach.db import db_connection, fetchall_dicts, fetchone_dict
 from garmin_coach.enums import PlanStatus, SessionStatus
 from garmin_coach.jsonio import error_response, success_response
 
@@ -54,54 +54,53 @@ def set_plan_status(
     except ValueError:
         return error_response([f"Invalid plan status: {status}. Valid: {[e.value for e in PlanStatus]}"])
 
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        plan = fetchone_dict(conn, "SELECT * FROM training_plans WHERE id=?", (plan_id,))
+        if not plan:
+            return error_response([f"Plan {plan_id} not found."])
 
-    plan = fetchone_dict(conn, "SELECT * FROM training_plans WHERE id=?", (plan_id,))
-    if not plan:
-        return error_response([f"Plan {plan_id} not found."])
+        current_status = PlanStatus(plan["status"])
 
-    current_status = PlanStatus(plan["status"])
+        # Vérifier la transition
+        if new_status not in _PLAN_TRANSITIONS.get(current_status, set()):
+            return error_response(
+                [f"Invalid transition: {current_status.value} → {new_status.value}. "
+                 f"Allowed: {[s.value for s in _PLAN_TRANSITIONS.get(current_status, set())]}"]
+            )
 
-    # Vérifier la transition
-    if new_status not in _PLAN_TRANSITIONS.get(current_status, set()):
-        return error_response(
-            [f"Invalid transition: {current_status.value} → {new_status.value}. "
-             f"Allowed: {[s.value for s in _PLAN_TRANSITIONS.get(current_status, set())]}"]
+        session_status_changes: list[dict[str, Any]] = []
+
+        if cascade_sessions:
+            session_status_changes = _compute_session_cascade(conn, plan_id, new_status)
+
+        if dry_run:
+            return success_response({
+                "plan_id": plan_id,
+                "plan_status": new_status.value,
+                "session_status_changes": session_status_changes,
+                "dry_run": True,
+            }, warnings=["Dry run — nothing written."])
+
+        conn.execute(
+            "UPDATE training_plans SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (new_status.value, plan_id),
         )
 
-    session_status_changes: list[dict[str, Any]] = []
+        # Appliquer la cascade
+        if cascade_sessions:
+            for change in session_status_changes:
+                conn.execute(
+                    "UPDATE plan_sessions SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (change["new_status"], change["session_id"]),
+                )
 
-    if cascade_sessions:
-        session_status_changes = _compute_session_cascade(conn, plan_id, new_status)
+        conn.commit()
 
-    if dry_run:
         return success_response({
             "plan_id": plan_id,
             "plan_status": new_status.value,
             "session_status_changes": session_status_changes,
-            "dry_run": True,
-        }, warnings=["Dry run — nothing written."])
-
-    conn.execute(
-        "UPDATE training_plans SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-        (new_status.value, plan_id),
-    )
-
-    # Appliquer la cascade
-    if cascade_sessions:
-        for change in session_status_changes:
-            conn.execute(
-                "UPDATE plan_sessions SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                (change["new_status"], change["session_id"]),
-            )
-
-    conn.commit()
-
-    return success_response({
-        "plan_id": plan_id,
-        "plan_status": new_status.value,
-        "session_status_changes": session_status_changes,
-    })
+        })
 
 
 def set_plan_session_status(
@@ -128,44 +127,43 @@ def set_plan_session_status(
     except ValueError:
         return error_response([f"Invalid session status: {status}. Valid: {[e.value for e in SessionStatus]}"])
 
-    conn = ensure_db(db_path)
-
-    session = fetchone_dict(
-        conn,
-        "SELECT * FROM plan_sessions WHERE id=? AND plan_id=?",
-        (session_id, plan_id),
-    )
-    if not session:
-        return error_response([f"Session {session_id} not found in plan {plan_id}."])
-
-    current_status = SessionStatus(session["status"])
-
-    # Vérifier la transition
-    if new_status not in _SESSION_TRANSITIONS.get(current_status, set()):
-        return error_response(
-            [f"Invalid transition: {current_status.value} → {new_status.value}. "
-             f"Allowed: {[s.value for s in _SESSION_TRANSITIONS.get(current_status, set())]}"]
+    with db_connection(db_path) as conn:
+        session = fetchone_dict(
+            conn,
+            "SELECT * FROM plan_sessions WHERE id=? AND plan_id=?",
+            (session_id, plan_id),
         )
+        if not session:
+            return error_response([f"Session {session_id} not found in plan {plan_id}."])
 
-    if dry_run:
+        current_status = SessionStatus(session["status"])
+
+        # Vérifier la transition
+        if new_status not in _SESSION_TRANSITIONS.get(current_status, set()):
+            return error_response(
+                [f"Invalid transition: {current_status.value} → {new_status.value}. "
+                 f"Allowed: {[s.value for s in _SESSION_TRANSITIONS.get(current_status, set())]}"]
+            )
+
+        if dry_run:
+            return success_response({
+                "plan_id": plan_id,
+                "session_id": session_id,
+                "session_status": new_status.value,
+                "dry_run": True,
+            }, warnings=["Dry run — nothing written."])
+
+        conn.execute(
+            "UPDATE plan_sessions SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (new_status.value, session_id),
+        )
+        conn.commit()
+
         return success_response({
             "plan_id": plan_id,
             "session_id": session_id,
             "session_status": new_status.value,
-            "dry_run": True,
-        }, warnings=["Dry run — nothing written."])
-
-    conn.execute(
-        "UPDATE plan_sessions SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-        (new_status.value, session_id),
-    )
-    conn.commit()
-
-    return success_response({
-        "plan_id": plan_id,
-        "session_id": session_id,
-        "session_status": new_status.value,
-    })
+        })
 
 
 def _compute_session_cascade(

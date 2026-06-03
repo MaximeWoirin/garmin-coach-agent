@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from garmin_coach.db import ensure_db, fetchone_dict
+from garmin_coach.db import db_connection, fetchone_dict
 from garmin_coach.enums import GoalPriority, GoalStatus, PlanStatus, SessionStatus
 from garmin_coach.jsonio import error_response, success_response
 
@@ -43,52 +43,51 @@ def create_plan_draft(
             "dry_run": True,
         }, warnings=["Dry run — nothing written."])
 
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        # Vérifier le block_id si fourni
+        if block_id:
+            block = fetchone_dict(conn, "SELECT id FROM training_blocks WHERE id=?", (block_id,))
+            if not block:
+                return error_response([f"Block {block_id} not found."])
 
-    # Vérifier le block_id si fourni
-    if block_id:
-        block = fetchone_dict(conn, "SELECT id FROM training_blocks WHERE id=?", (block_id,))
-        if not block:
-            return error_response([f"Block {block_id} not found."])
+        # Construire les métadonnées
+        meta = {}
+        if metadata_json:
+            try:
+                meta = json.loads(metadata_json)
+            except json.JSONDecodeError:
+                return error_response(["Invalid metadata_json format."])
+        if title:
+            meta["title"] = title
 
-    # Construire les métadonnées
-    meta = {}
-    if metadata_json:
-        try:
-            meta = json.loads(metadata_json)
-        except json.JSONDecodeError:
-            return error_response(["Invalid metadata_json format."])
-    if title:
-        meta["title"] = title
+        meta_str = json.dumps(meta) if meta else None
 
-    meta_str = json.dumps(meta) if meta else None
+        conn.execute(
+            """INSERT INTO training_plans (block_id, week_start, week_end, status, notes, metadata_json)
+               VALUES (?, ?, ?, 'draft', ?, ?)""",
+            (block_id, week_start, week_end, notes, meta_str),
+        )
+        conn.commit()
+        plan_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    conn.execute(
-        """INSERT INTO training_plans (block_id, week_start, week_end, status, notes, metadata_json)
-           VALUES (?, ?, ?, 'draft', ?, ?)""",
-        (block_id, week_start, week_end, notes, meta_str),
-    )
-    conn.commit()
-    plan_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        # Créer les séances initiales si fournies
+        sessions_created = 0
+        if sessions_json:
+            try:
+                sessions = json.loads(sessions_json)
+                for s in sessions:
+                    _create_session_from_dict(conn, plan_id, s)
+                    sessions_created += 1
+            except (json.JSONDecodeError, KeyError) as exc:
+                warnings.append(f"Some sessions not created: {exc}")
 
-    # Créer les séances initiales si fournies
-    sessions_created = 0
-    if sessions_json:
-        try:
-            sessions = json.loads(sessions_json)
-            for s in sessions:
-                _create_session_from_dict(conn, plan_id, s)
-                sessions_created += 1
-        except (json.JSONDecodeError, KeyError) as exc:
-            warnings.append(f"Some sessions not created: {exc}")
-
-    return success_response({
-        "plan_id": plan_id,
-        "week_start": week_start,
-        "week_end": week_end,
-        "plan_status": PlanStatus.DRAFT.value,
-        "sessions_created": sessions_created,
-    }, warnings=warnings)
+        return success_response({
+            "plan_id": plan_id,
+            "week_start": week_start,
+            "week_end": week_end,
+            "plan_status": PlanStatus.DRAFT.value,
+            "sessions_created": sessions_created,
+        }, warnings=warnings)
 
 
 def create_plan_session(
@@ -128,33 +127,32 @@ def create_plan_session(
             "dry_run": True,
         }, warnings=["Dry run — nothing written."])
 
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        # Vérifier le plan
+        plan = fetchone_dict(conn, "SELECT id, status FROM training_plans WHERE id=?", (plan_id,))
+        if not plan:
+            return error_response([f"Plan {plan_id} not found."])
 
-    # Vérifier le plan
-    plan = fetchone_dict(conn, "SELECT id, status FROM training_plans WHERE id=?", (plan_id,))
-    if not plan:
-        return error_response([f"Plan {plan_id} not found."])
+        conn.execute(
+            """INSERT INTO plan_sessions (
+                plan_id, planned_date, planned_time, activity_type, duration_min,
+                intensity, target_hr_low, target_hr_high, target_pace_sec_per_km,
+                target_rpe, status, tags_json, notes, workout_payload_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                plan_id, planned_date, planned_time, activity_type, duration_min,
+                intensity, target_hr_low, target_hr_high, target_pace_sec_per_km,
+                target_rpe, canonical_status.value, tags_json, notes, workout_payload_json,
+            ),
+        )
+        conn.commit()
+        session_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    conn.execute(
-        """INSERT INTO plan_sessions (
-            plan_id, planned_date, planned_time, activity_type, duration_min,
-            intensity, target_hr_low, target_hr_high, target_pace_sec_per_km,
-            target_rpe, status, tags_json, notes, workout_payload_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            plan_id, planned_date, planned_time, activity_type, duration_min,
-            intensity, target_hr_low, target_hr_high, target_pace_sec_per_km,
-            target_rpe, canonical_status.value, tags_json, notes, workout_payload_json,
-        ),
-    )
-    conn.commit()
-    session_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-    return success_response({
-        "plan_id": plan_id,
-        "session_id": session_id,
-        "session_status": canonical_status.value,
-    })
+        return success_response({
+            "plan_id": plan_id,
+            "session_id": session_id,
+            "session_status": canonical_status.value,
+        })
 
 
 def delete_plan_session(
@@ -168,36 +166,35 @@ def delete_plan_session(
     Returns:
         Réponse JSON avec la séance supprimée.
     """
-    conn = ensure_db(db_path)
-
-    session = fetchone_dict(
-        conn,
-        "SELECT * FROM plan_sessions WHERE id=? AND plan_id=?",
-        (session_id, plan_id),
-    )
-    if not session:
-        return error_response([f"Session {session_id} not found in plan {plan_id}."])
-
-    # Refuser la suppression si exportée ou réalisée
-    if session["status"] in (SessionStatus.EXPORTED, SessionStatus.DONE):
-        return error_response(
-            [f"Cannot delete session {session_id}: status is '{session['status']}'. Only draft/proposed/skipped/canceled sessions can be deleted."]
+    with db_connection(db_path) as conn:
+        session = fetchone_dict(
+            conn,
+            "SELECT * FROM plan_sessions WHERE id=? AND plan_id=?",
+            (session_id, plan_id),
         )
+        if not session:
+            return error_response([f"Session {session_id} not found in plan {plan_id}."])
 
-    if dry_run:
+        # Refuser la suppression si exportée ou réalisée
+        if session["status"] in (SessionStatus.EXPORTED, SessionStatus.DONE):
+            return error_response(
+                [f"Cannot delete session {session_id}: status is '{session['status']}'. Only draft/proposed/skipped/canceled sessions can be deleted."]
+            )
+
+        if dry_run:
+            return success_response({
+                "plan_id": plan_id,
+                "session_id": session_id,
+                "dry_run": True,
+            }, warnings=["Dry run — nothing deleted."])
+
+        conn.execute("DELETE FROM plan_sessions WHERE id=?", (session_id,))
+        conn.commit()
+
         return success_response({
             "plan_id": plan_id,
             "session_id": session_id,
-            "dry_run": True,
-        }, warnings=["Dry run — nothing deleted."])
-
-    conn.execute("DELETE FROM plan_sessions WHERE id=?", (session_id,))
-    conn.commit()
-
-    return success_response({
-        "plan_id": plan_id,
-        "session_id": session_id,
-    })
+        })
 
 
 def _create_session_from_dict(conn: Any, plan_id: int, s: dict[str, Any]) -> None:
@@ -297,37 +294,36 @@ def create_goal(
             "dry_run": True,
         }, warnings=["Dry run — nothing written."])
 
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        # Validation goal_code unique
+        if goal_code is not None:
+            existing = fetchone_dict(conn, "SELECT id FROM training_goals WHERE goal_code=?", (goal_code,))
+            if existing:
+                return error_response([f"goal_code '{goal_code}' already exists (goal_id={existing['id']})."])
 
-    # Validation goal_code unique
-    if goal_code is not None:
-        existing = fetchone_dict(conn, "SELECT id FROM training_goals WHERE goal_code=?", (goal_code,))
-        if existing:
-            return error_response([f"goal_code '{goal_code}' already exists (goal_id={existing['id']})."])
+        conn.execute(
+            """INSERT INTO training_goals (
+                goal_code, primary_goal, priority, horizon_date,
+                target_event_name, target_event_date, target_event_priority,
+                status, raw_text, metadata_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                goal_code,
+                primary_goal.strip(),
+                canonical_priority.value,
+                horizon_date,
+                target_event_name,
+                target_event_date,
+                canonical_event_priority.value if canonical_event_priority else None,
+                canonical_status.value,
+                raw_text,
+                meta_str,
+            ),
+        )
+        conn.commit()
+        goal_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    conn.execute(
-        """INSERT INTO training_goals (
-            goal_code, primary_goal, priority, horizon_date,
-            target_event_name, target_event_date, target_event_priority,
-            status, raw_text, metadata_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            goal_code,
-            primary_goal.strip(),
-            canonical_priority.value,
-            horizon_date,
-            target_event_name,
-            target_event_date,
-            canonical_event_priority.value if canonical_event_priority else None,
-            canonical_status.value,
-            raw_text,
-            meta_str,
-        ),
-    )
-    conn.commit()
-    goal_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-    return success_response({
-        "goal_id": goal_id,
-        "goal_status": canonical_status.value,
-    })
+        return success_response({
+            "goal_id": goal_id,
+            "goal_status": canonical_status.value,
+        })

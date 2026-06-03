@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from garmin_coach.db import ensure_db, fetchall_dicts
+from garmin_coach.db import db_connection, fetchall_dicts
 from garmin_coach.jsonio import success_response
 
 
@@ -25,44 +25,43 @@ def get_constraints(
     Returns:
         Réponse JSON avec les contraintes.
     """
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        sql = """
+            SELECT id, goal_id, type, severity, status, scope,
+                   start_date, end_date, source, confidence,
+                   raw_text, tags_json, notes_json,
+                   created_at, resolved_at
+            FROM constraints
+            WHERE 1=1
+        """
+        params: list[Any] = []
 
-    sql = """
-        SELECT id, goal_id, type, severity, status, scope,
-               start_date, end_date, source, confidence,
-               raw_text, tags_json, notes_json,
-               created_at, resolved_at
-        FROM constraints
-        WHERE 1=1
-    """
-    params: list[Any] = []
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
 
-    if status:
-        sql += " AND status = ?"
-        params.append(status)
+        if scope:
+            sql += " AND scope = ?"
+            params.append(scope)
 
-    if scope:
-        sql += " AND scope = ?"
-        params.append(scope)
+        sql += " ORDER BY severity DESC, start_date ASC"
 
-    sql += " ORDER BY severity DESC, start_date ASC"
+        if limit:
+            sql += " LIMIT ?"
+            params.append(limit)
 
-    if limit:
-        sql += " LIMIT ?"
-        params.append(limit)
+        constraints = fetchall_dicts(conn, sql, tuple(params))
 
-    constraints = fetchall_dicts(conn, sql, tuple(params))
+        summary = {
+            "count": len(constraints),
+            "by_type": _count_by(constraints, "type"),
+            "by_severity": _count_by(constraints, "severity"),
+        }
 
-    summary = {
-        "count": len(constraints),
-        "by_type": _count_by(constraints, "type"),
-        "by_severity": _count_by(constraints, "severity"),
-    }
-
-    return success_response({
-        "constraints": constraints,
-        "summary": summary,
-    })
+        return success_response({
+            "constraints": constraints,
+            "summary": summary,
+        })
 
 
 def _count_by(items: list[dict[str, Any]], key: str) -> dict[str, int]:

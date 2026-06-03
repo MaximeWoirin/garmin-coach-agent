@@ -75,6 +75,21 @@ def test_create_constraint_main(seeded_db: Path) -> None:
             assert exc_info.value.code == 0
 
 
+def test_create_goal_main(tmp_db: Path) -> None:
+    """Test create_goal CLI."""
+    with patch.dict("os.environ", {"GARMIN_COACH_DB": str(tmp_db)}):
+        with patch("sys.argv", [
+            "create_goal",
+            "--primary-goal", "Courir un 10 km",
+            "--priority", "high",
+            "--dry-run",
+        ]):
+            from garmin_coach.create_goal import main
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+
+
 def test_create_plan_draft_main(seeded_db: Path) -> None:
     """Test create_plan_draft CLI."""
     with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):

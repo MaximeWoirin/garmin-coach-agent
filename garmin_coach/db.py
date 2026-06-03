@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -63,6 +65,16 @@ def ensure_db(db_path: Path | None = None) -> sqlite3.Connection:
     conn = get_connection(db_path)
     run_migrations(conn)
     return conn
+
+
+@contextmanager
+def db_connection(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
+    """Ouvre une connexion SQLite prête à l'emploi et la referme toujours."""
+    conn = ensure_db(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def fetchone_dict(conn: sqlite3.Connection, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:

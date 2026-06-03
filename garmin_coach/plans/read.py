@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from garmin_coach.db import ensure_db, fetchall_dicts, fetchone_dict
+from garmin_coach.db import db_connection, fetchall_dicts, fetchone_dict
 from garmin_coach.jsonio import error_response, success_response
 
 
@@ -27,41 +27,40 @@ def get_current_plan(
     Returns:
         Réponse JSON avec le plan courant.
     """
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        plan = _find_plan(conn, plan_id, week_start)
+        if not plan:
+            return error_response(["No active or draft plan found."])
 
-    plan = _find_plan(conn, plan_id, week_start)
-    if not plan:
-        return error_response(["No active or draft plan found."])
+        result: dict[str, Any] = {
+            "plan_id": plan["id"],
+            "week_start": plan["week_start"],
+            "week_end": plan["week_end"],
+            "plan_status": plan["status"],
+            "generated_by": plan["generated_by"],
+            "confidence": plan["confidence"],
+            "needs_review": bool(plan["needs_review"]),
+            "notes": plan["notes"],
+        }
 
-    result: dict[str, Any] = {
-        "plan_id": plan["id"],
-        "week_start": plan["week_start"],
-        "week_end": plan["week_end"],
-        "plan_status": plan["status"],
-        "generated_by": plan["generated_by"],
-        "confidence": plan["confidence"],
-        "needs_review": bool(plan["needs_review"]),
-        "notes": plan["notes"],
-    }
+        if include_metadata and plan.get("metadata_json"):
+            result["metadata"] = plan["metadata_json"]
 
-    if include_metadata and plan.get("metadata_json"):
-        result["metadata"] = plan["metadata_json"]
+        if include_sessions:
+            sessions = fetchall_dicts(
+                conn,
+                """SELECT id, planned_date, planned_time, activity_type, duration_min,
+                          intensity, target_hr_low, target_hr_high,
+                          target_pace_sec_per_km, target_rpe, status,
+                          garmin_event_id, tags_json, notes
+                   FROM plan_sessions WHERE plan_id = ?
+                   ORDER BY planned_date ASC, planned_time ASC""",
+                (plan["id"],),
+            )
+            result["sessions"] = sessions
+            result["sessions_count"] = len(sessions)
 
-    if include_sessions:
-        sessions = fetchall_dicts(
-            conn,
-            """SELECT id, planned_date, planned_time, activity_type, duration_min,
-                      intensity, target_hr_low, target_hr_high,
-                      target_pace_sec_per_km, target_rpe, status,
-                      garmin_event_id, tags_json, notes
-               FROM plan_sessions WHERE plan_id = ?
-               ORDER BY planned_date ASC, planned_time ASC""",
-            (plan["id"],),
-        )
-        result["sessions"] = sessions
-        result["sessions_count"] = len(sessions)
-
-    return success_response(result)
+        return success_response(result)
 
 
 def get_goals(
@@ -81,38 +80,37 @@ def get_goals(
     Returns:
         Réponse JSON avec les objectifs.
     """
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        sql = """
+            SELECT id, goal_code, primary_goal, priority, horizon_date,
+                   target_event_name, target_event_date, target_event_priority,
+                   status, raw_text, metadata_json, created_at, updated_at
+            FROM training_goals
+            WHERE 1=1
+        """
+        params: list[Any] = []
 
-    sql = """
-        SELECT id, goal_code, primary_goal, priority, horizon_date,
-               target_event_name, target_event_date, target_event_priority,
-               status, raw_text, metadata_json, created_at, updated_at
-        FROM training_goals
-        WHERE 1=1
-    """
-    params: list[Any] = []
+        if status and not include_archived:
+            sql += " AND status = ?"
+            params.append(status)
 
-    if status and not include_archived:
-        sql += " AND status = ?"
-        params.append(status)
+        sql += " ORDER BY priority DESC, created_at DESC"
 
-    sql += " ORDER BY priority DESC, created_at DESC"
+        if limit:
+            sql += " LIMIT ?"
+            params.append(limit)
 
-    if limit:
-        sql += " LIMIT ?"
-        params.append(limit)
+        goals = fetchall_dicts(conn, sql, tuple(params))
 
-    goals = fetchall_dicts(conn, sql, tuple(params))
+        summary = {
+            "count": len(goals),
+            "by_priority": _count_by(goals, "priority"),
+        }
 
-    summary = {
-        "count": len(goals),
-        "by_priority": _count_by(goals, "priority"),
-    }
-
-    return success_response({
-        "goals": goals,
-        "summary": summary,
-    })
+        return success_response({
+            "goals": goals,
+            "summary": summary,
+        })
 
 
 def _find_plan(conn: Any, plan_id: int | None, week_start: str | None) -> dict[str, Any] | None:

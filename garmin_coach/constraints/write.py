@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from garmin_coach.db import ensure_db, fetchone_dict
+from garmin_coach.db import db_connection, fetchone_dict
 from garmin_coach.enums import ConstraintScope, ConstraintSeverity, ConstraintStatus, ConstraintType
 from garmin_coach.jsonio import error_response, success_response
 
@@ -60,36 +60,35 @@ def create_constraint(
             "dry_run": True,
         }, warnings=["Dry run — nothing written."])
 
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        conn.execute(
+            """INSERT INTO constraints (
+                goal_id, type, severity, status, scope,
+                start_date, end_date, source, confidence,
+                raw_text, tags_json, notes_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                goal_id,
+                canonical_type.value,
+                canonical_severity.value,
+                canonical_status.value,
+                canonical_scope.value,
+                start_date,
+                end_date,
+                source,
+                confidence,
+                raw_text,
+                tags_json,
+                notes_json,
+            ),
+        )
+        conn.commit()
+        constraint_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    conn.execute(
-        """INSERT INTO constraints (
-            goal_id, type, severity, status, scope,
-            start_date, end_date, source, confidence,
-            raw_text, tags_json, notes_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            goal_id,
-            canonical_type.value,
-            canonical_severity.value,
-            canonical_status.value,
-            canonical_scope.value,
-            start_date,
-            end_date,
-            source,
-            confidence,
-            raw_text,
-            tags_json,
-            notes_json,
-        ),
-    )
-    conn.commit()
-    constraint_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-    return success_response({
-        "constraint_id": constraint_id,
-        "constraint_status": canonical_status.value,
-    }, warnings=warnings)
+        return success_response({
+            "constraint_id": constraint_id,
+            "constraint_status": canonical_status.value,
+        }, warnings=warnings)
 
 
 def delete_constraint(
@@ -102,19 +101,18 @@ def delete_constraint(
     Returns:
         Réponse JSON avec la contrainte supprimée.
     """
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        existing = fetchone_dict(conn, "SELECT * FROM constraints WHERE id=?", (constraint_id,))
+        if not existing:
+            return error_response([f"Constraint {constraint_id} not found."])
 
-    existing = fetchone_dict(conn, "SELECT * FROM constraints WHERE id=?", (constraint_id,))
-    if not existing:
-        return error_response([f"Constraint {constraint_id} not found."])
+        if dry_run:
+            return success_response({
+                "constraint_id": constraint_id,
+                "dry_run": True,
+            }, warnings=["Dry run — nothing deleted."])
 
-    if dry_run:
-        return success_response({
-            "constraint_id": constraint_id,
-            "dry_run": True,
-        }, warnings=["Dry run — nothing deleted."])
+        conn.execute("DELETE FROM constraints WHERE id=?", (constraint_id,))
+        conn.commit()
 
-    conn.execute("DELETE FROM constraints WHERE id=?", (constraint_id,))
-    conn.commit()
-
-    return success_response({"constraint_id": constraint_id})
+        return success_response({"constraint_id": constraint_id})
