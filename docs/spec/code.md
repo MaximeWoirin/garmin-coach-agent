@@ -20,7 +20,7 @@ On sépare clairement :
 - **intégration Garmin** : auth, sync, export
 - **modèles communs** : enums, validation, sérialisation JSON
 
-## Structure recommandée
+## Structure actuelle (vue simplifiée)
 
 ```text
 .
@@ -38,13 +38,19 @@ On sépare clairement :
 │       ├── database.md
 │       ├── tools.md
 │       ├── scripts.md
+│       ├── export-workflow.md
 │       └── agent.md
 ├── agent/
+│   ├── AGENTS.md
+│   ├── BOOTSTRAP.md
+│   ├── HEARTBEAT.md
+│   ├── IDENTITY.md
 │   ├── README.md
-│   ├── SYSTEM.md
 │   ├── SOUL.md
+│   ├── SYSTEM.md
 │   ├── TOOLS.md
-│   ├── MEMORY.md
+│   ├── skills/
+│   │   └── <skill>/SKILL.md
 │   └── playbooks/
 │       ├── daily_coaching.md
 │       ├── weekly_planning.md
@@ -56,8 +62,10 @@ On sépare clairement :
 │   ├── export-plan-garmin
 │   ├── get-activities
 │   ├── get-fitness-state
+│   ├── get-goals
 │   ├── get-constraints
 │   ├── get-current-plan
+│   ├── create-goal
 │   ├── create-plan-draft
 │   ├── create-plan-session
 │   ├── delete-plan-session
@@ -72,6 +80,7 @@ On sépare clairement :
     ├── db.py
     ├── enums.py
     ├── jsonio.py
+    ├── create_goal.py
     ├── garmin/
     │   ├── __init__.py
     │   ├── auth.py
@@ -108,14 +117,15 @@ Il doit contenir :
 - éventuels scripts installables plus tard
 
 ### `agent/`
-Contient la documentation d’orchestration LLM.
+Contient la documentation d’orchestration LLM et les skills métier du coach.
 
 Responsabilités :
 - rôle et règles du coach
 - ton et posture conversationnelle
 - mapping entre intentions et scripts
+- skills métier alignés avec les scripts publics
 - playbooks d’usage
-- mémoire stable versionnée
+- fichiers de contexte versionnés
 
 Ce dossier ne doit pas devenir un fourre-tout.
 La mémoire runtime volatile doit vivre hors Git.

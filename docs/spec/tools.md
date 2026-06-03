@@ -23,10 +23,10 @@ Le principe est simple :
 | Bloc | Rôle | État |
 |---|---|---|
 | Objectifs | Cap moyen terme, événement cible, niveau d’ambition | lecture + création OK |
-| Activités | Séances réelles, import Garmin, lecture, réconciliation | à détailler |
+| Activités | Séances réelles, import Garmin, lecture, réconciliation | lecture + sync OK, réconciliation à affiner |
 | Métriques physiologiques | Daily metrics, readiness, lecture, synchro | presque complet |
 | Contraintes | Contraintes de vie / training / santé / dispo | lecture + écriture de base OK |
-| Plans | Plan hebdo, séances planifiées, export Garmin, revue | à structurer |
+| Plans | Plan hebdo, séances planifiées, export Garmin, revue | socle V1 implémenté |
 
 ## Ce qu’on veut garder stable
 
@@ -57,8 +57,8 @@ Pour chaque bloc métier, on garde la même fiche :
 
 ### Activités
 
-- **Existant** : `sync-garmin`, `get-activities`
-- **Manquant** : réconciliation Garmin, matching plan ↔ activité
+- **Existant** : `sync-garmin`, `get-activities`, réconciliation de base au fil de la sync
+- **Manquant** : matching plan ↔ activité plus fin, gestion des corrections tardives
 - **Dépendances** : Garmin source, SQLite, `plan_activity_matches`
 
 ### Métriques physiologiques
@@ -69,14 +69,14 @@ Pour chaque bloc métier, on garde la même fiche :
 
 ### Contraintes
 
-- **Existant** : `get-constraints`
-- **Manquant** : création, suppression, changement de statut
+- **Existant** : `get-constraints`, `create-constraint`, `delete-constraint`, `set-constraint-status`
+- **Manquant** : lifecycle plus riche éventuel, normalisation plus poussée si le besoin apparaît
 - **Dépendances** : mémoire agent pour le durable, SQLite pour l’état actif/historique
 
 ### Plans
 
-- **Existant** : schéma DB (`training_blocks`, `training_plans`, `plan_sessions`, `plan_reviews`)
-- **Manquant** : lecture du plan courant, création/suppression de séances, changement de statut, export Garmin
+- **Existant** : schéma DB (`training_blocks`, `training_plans`, `plan_sessions`, `plan_reviews`), `get-current-plan`, `create-plan-draft`, `create-plan-session`, `delete-plan-session`, `set-plan-status`, `set-plan-session-status`, `export-plan-garmin`
+- **Manquant** : mise à jour granulaire de séance sans delete + recreate, revue plus structurée, réconciliation plus riche
 - **Dépendances** : objectifs, contraintes, activités, métriques physiologiques, historique du plan
 
 ## Authentification Garmin

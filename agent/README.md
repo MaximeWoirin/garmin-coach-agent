@@ -9,10 +9,14 @@ But :
 
 ## Structure
 
+- `AGENTS.md` — règles de vie de l’agent dans son workspace
+- `BOOTSTRAP.md` — point d’entrée du premier démarrage
+- `IDENTITY.md` — identité de base de l’agent
+- `HEARTBEAT.md` — tâches périodiques légères si le runtime en utilise
 - `SYSTEM.md` — rôle, règles, limites, contrat de réponse
 - `SOUL.md` — ton, style, posture conversationnelle
 - `TOOLS.md` — quels scripts appeler, dans quel ordre, pour quelle mission
-- `MEMORY.md` — mémoire stable versionnée (préférences, conventions, décisions durables)
+- `skills/` — skills métier alignés avec les scripts publics
 - `playbooks/` — séquences d’orchestration par cas d’usage
 
 ## Ce qui ne doit pas vivre ici
