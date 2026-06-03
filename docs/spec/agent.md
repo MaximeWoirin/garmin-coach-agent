@@ -21,10 +21,14 @@ Le découpage fonctionnel des outils vit dans [`tools.md`](tools.md).
 Le workflow recommandé de validation locale + export progressif vit dans [`export-workflow.md`](export-workflow.md).
 
 La documentation opérationnelle de l’agent vit dans le dossier [`../../agent/`](../../agent/):
+- `AGENTS.md`
+- `BOOTSTRAP.md`
+- `IDENTITY.md`
+- `HEARTBEAT.md`
 - `SYSTEM.md`
 - `SOUL.md`
 - `TOOLS.md`
-- `MEMORY.md`
+- `skills/`
 - `playbooks/`
 
 ## Ce qu’on attend de lui

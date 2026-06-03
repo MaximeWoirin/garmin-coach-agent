@@ -12,11 +12,19 @@ Gérer le plan d'entraînement vivant : blocs, semaines, séances, revue, export
 - `plan_sessions`
 - `plan_reviews`
 - `plan_activity_matches`
+- `get-current-plan`
+- `create-plan-draft`
+- `create-plan-session`
+- `delete-plan-session`
+- `set-plan-status`
+- `set-plan-session-status`
+- `export-plan-garmin`
 
 ## Backbone minimal
 
 Le backbone V1 du bloc plans repose sur ces scripts :
 
+- `get-current-plan` : lit le plan courant ou un plan ciblé
 - `create-plan-draft` : crée un plan local avec ses métadonnées et ses séances
 - `create-plan-session` : ajoute une séance à un plan
 - `delete-plan-session` : supprime une séance locale (draft ou proposed)

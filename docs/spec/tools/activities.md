@@ -11,13 +11,16 @@ Gérer les séances réelles importées depuis Garmin.
 
 ## Ce qui manque probablement
 
-- réconciliation Garmin
-- matching entre activité réelle et séance planifiée
-- gestion des doublons et des corrections tardives
+- matching plus fin entre activité réelle et séance planifiée
+- gestion explicite des doublons et des corrections tardives
+- éventuel rapport de réconciliation dédié si le snapshot de sync devient trop chargé
 
-## Scripts envisagés
+## Backbone minimal
+
+Le backbone V1 du bloc activités repose sur ces scripts :
 
 - `sync-garmin`
+- `get-activities`
 
 ## Dépendances
 
