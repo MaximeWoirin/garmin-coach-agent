@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from garmin_coach.db import ensure_db, fetchall_dicts
+from garmin_coach.db import db_connection, fetchall_dicts
 from garmin_coach.jsonio import success_response
 
 
@@ -25,35 +25,34 @@ def get_fitness_state(
     Returns:
         Réponse JSON avec les métriques et un résumé de tendance.
     """
-    conn = ensure_db(db_path)
+    with db_connection(db_path) as conn:
+        sql = """
+            SELECT id, metric_date, steps, distance_m, intensity_minutes,
+                   resting_hr, min_hr, max_hr, avg_hr,
+                   stress_avg, stress_max,
+                   body_battery_start, body_battery_end,
+                   body_battery_min, body_battery_max,
+                   respiration_avg, pulse_ox_avg
+            FROM daily_metrics
+            WHERE metric_date >= ? AND metric_date < ?
+            ORDER BY metric_date ASC
+        """
+        params: list[Any] = [start, end]
 
-    sql = """
-        SELECT id, metric_date, steps, distance_m, intensity_minutes,
-               resting_hr, min_hr, max_hr, avg_hr,
-               stress_avg, stress_max,
-               body_battery_start, body_battery_end,
-               body_battery_min, body_battery_max,
-               respiration_avg, pulse_ox_avg
-        FROM daily_metrics
-        WHERE metric_date >= ? AND metric_date < ?
-        ORDER BY metric_date ASC
-    """
-    params: list[Any] = [start, end]
+        if limit:
+            sql += " LIMIT ?"
+            params.append(limit)
 
-    if limit:
-        sql += " LIMIT ?"
-        params.append(limit)
+        metrics = fetchall_dicts(conn, sql, tuple(params))
 
-    metrics = fetchall_dicts(conn, sql, tuple(params))
+        # Résumé de tendances
+        summary = _compute_trends(metrics)
 
-    # Résumé de tendances
-    summary = _compute_trends(metrics)
-
-    return success_response({
-        "period": {"start": start, "end": end},
-        "daily_metrics": metrics,
-        "summary": summary,
-    })
+        return success_response({
+            "period": {"start": start, "end": end},
+            "daily_metrics": metrics,
+            "summary": summary,
+        })
 
 
 def _compute_trends(metrics: list[dict[str, Any]]) -> dict[str, Any]:

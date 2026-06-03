@@ -7,7 +7,7 @@ import sqlite3
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from garmin_coach.db import ensure_db, fetchall_dicts
+from garmin_coach.db import db_connection, fetchall_dicts
 from garmin_coach.garmin.client import get_client
 from garmin_coach.jsonio import error_response, partial_response, success_response
 
@@ -31,105 +31,105 @@ def sync(
     Returns:
         Réponse JSON avec le statut de synchronisation.
     """
-    conn = ensure_db(db_path)
     warnings: list[str] = []
     errors: list[str] = []
 
-    today = date.today()
-    if end_date is None:
-        end_date = today - timedelta(days=1)
-    if start_date is None:
-        start_date = end_date - timedelta(days=lookback_days - 1)
+    with db_connection(db_path) as conn:
+        today = date.today()
+        if end_date is None:
+            end_date = today - timedelta(days=1)
+        if start_date is None:
+            start_date = end_date - timedelta(days=lookback_days - 1)
 
-    range_start = start_date.isoformat()
-    range_end = end_date.isoformat()
+        range_start = start_date.isoformat()
+        range_end = end_date.isoformat()
 
-    # Enregistrer le début de sync
-    started_at = datetime.now(UTC).isoformat()
-    conn.execute(
-        """INSERT INTO sync_runs (source, sync_type, started_at, status, range_start, range_end)
-           VALUES ('garmin', 'daily', ?, 'running', ?, ?)""",
-        (started_at, range_start, range_end),
-    )
-    conn.commit()
-    sync_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-    try:
-        client = get_client(tokens_dir)
-    except Exception as exc:
-        _finish_sync(conn, sync_id, "failed", error_message=str(exc))
-        return error_response([f"Garmin client error: {exc}"])
-
-    # Import des activités
-    activities_seen = 0
-    activities_inserted = 0
-    activities_updated = 0
-
-    try:
-        activities = client.get_activities_by_date(
-            range_start, range_end, activitytype=""
+        # Enregistrer le début de sync
+        started_at = datetime.now(UTC).isoformat()
+        conn.execute(
+            """INSERT INTO sync_runs (source, sync_type, started_at, status, range_start, range_end)
+               VALUES ('garmin', 'daily', ?, 'running', ?, ?)""",
+            (started_at, range_start, range_end),
         )
-        activities_seen = len(activities)
+        conn.commit()
+        sync_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-        for act in activities:
-            inserted, updated = _upsert_activity(conn, act)
-            activities_inserted += inserted
-            activities_updated += updated
-    except Exception as exc:
-        errors.append(f"Activities sync error: {exc}")
+        try:
+            client = get_client(tokens_dir)
+        except Exception as exc:
+            _finish_sync(conn, sync_id, "failed", error_message=str(exc))
+            return error_response([f"Garmin client error: {exc}"])
 
-    # Import des daily metrics
-    daily_metrics_seen = 0
-    daily_metrics_upserted = 0
+        # Import des activités
+        activities_seen = 0
+        activities_inserted = 0
+        activities_updated = 0
 
-    try:
-        current = start_date
-        while current <= end_date:
-            metrics = _fetch_daily_metrics(client, current)
-            if metrics:
-                daily_metrics_seen += 1
-                daily_metrics_upserted += _upsert_daily_metrics(conn, current, metrics)
-            current += timedelta(days=1)
-    except Exception as exc:
-        errors.append(f"Daily metrics sync error: {exc}")
+        try:
+            activities = client.get_activities_by_date(
+                range_start, range_end, activitytype=""
+            )
+            activities_seen = len(activities)
 
-    # Réconciliation plan ↔ activités
-    reconciled_sessions = 0
-    matched_activities = 0
-    try:
-        reconciled_sessions, matched_activities = _reconcile_plan(conn, start_date, end_date)
-    except Exception as exc:
-        warnings.append(f"Reconciliation warning: {exc}")
+            for act in activities:
+                inserted, updated = _upsert_activity(conn, act)
+                activities_inserted += inserted
+                activities_updated += updated
+        except Exception as exc:
+            errors.append(f"Activities sync error: {exc}")
 
-    # Finaliser le sync run
-    status = "success" if not errors else "partial"
-    _finish_sync(
-        conn,
-        sync_id,
-        status,
-        activities_seen=activities_seen,
-        activities_inserted=activities_inserted,
-        activities_updated=activities_updated,
-        daily_metrics_seen=daily_metrics_seen,
-        daily_metrics_upserted=daily_metrics_upserted,
-    )
+        # Import des daily metrics
+        daily_metrics_seen = 0
+        daily_metrics_upserted = 0
 
-    data = {
-        "source": "garmin",
-        "range_start": range_start,
-        "range_end": range_end,
-        "activities_seen": activities_seen,
-        "activities_inserted": activities_inserted,
-        "activities_updated": activities_updated,
-        "daily_metrics_seen": daily_metrics_seen,
-        "daily_metrics_upserted": daily_metrics_upserted,
-        "reconciled_sessions": reconciled_sessions,
-        "matched_activities": matched_activities,
-    }
+        try:
+            current = start_date
+            while current <= end_date:
+                metrics = _fetch_daily_metrics(client, current)
+                if metrics:
+                    daily_metrics_seen += 1
+                    daily_metrics_upserted += _upsert_daily_metrics(conn, current, metrics)
+                current += timedelta(days=1)
+        except Exception as exc:
+            errors.append(f"Daily metrics sync error: {exc}")
 
-    if errors:
-        return partial_response(data, warnings=warnings, errors=errors)
-    return success_response(data, warnings=warnings)
+        # Réconciliation plan ↔ activités
+        reconciled_sessions = 0
+        matched_activities = 0
+        try:
+            reconciled_sessions, matched_activities = _reconcile_plan(conn, start_date, end_date)
+        except Exception as exc:
+            warnings.append(f"Reconciliation warning: {exc}")
+
+        # Finaliser le sync run
+        status = "success" if not errors else "partial"
+        _finish_sync(
+            conn,
+            sync_id,
+            status,
+            activities_seen=activities_seen,
+            activities_inserted=activities_inserted,
+            activities_updated=activities_updated,
+            daily_metrics_seen=daily_metrics_seen,
+            daily_metrics_upserted=daily_metrics_upserted,
+        )
+
+        data = {
+            "source": "garmin",
+            "range_start": range_start,
+            "range_end": range_end,
+            "activities_seen": activities_seen,
+            "activities_inserted": activities_inserted,
+            "activities_updated": activities_updated,
+            "daily_metrics_seen": daily_metrics_seen,
+            "daily_metrics_upserted": daily_metrics_upserted,
+            "reconciled_sessions": reconciled_sessions,
+            "matched_activities": matched_activities,
+        }
+
+        if errors:
+            return partial_response(data, warnings=warnings, errors=errors)
+        return success_response(data, warnings=warnings)
 
 
 def _upsert_activity(conn: sqlite3.Connection, act: dict[str, Any]) -> tuple[int, int]:
