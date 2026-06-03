@@ -56,7 +56,7 @@ Default behavior:
 
 What it installs:
   - agent files -> <workspace>/
-  - playbooks   -> <workspace>/playbooks/
+  - playbooks   -> <workspace>/playbooks/ (if present in repo)
   - skills      -> <workspace>/skills/
   - app snapshot + venv -> <install-root>/
 EOF
@@ -203,6 +203,19 @@ copy_tree_files() {
     dst="$dst_root/$rel"
     copy_file "$file" "$dst" "$backup_root"
   done < <(find "$src_root" -type f -print0 | sort -z)
+}
+
+copy_tree_files_if_exists() {
+  local src_root="$1"
+  local dst_root="$2"
+  local backup_root="$3"
+
+  if [[ ! -d "$src_root" ]]; then
+    log "Skipping missing optional directory: $src_root"
+    return
+  fi
+
+  copy_tree_files "$src_root" "$dst_root" "$backup_root"
 }
 
 sync_app_snapshot() {
@@ -765,7 +778,7 @@ main() {
     copy_file "$REPO_DIR/agent/$name" "$WORKSPACE_DIR/$name" "$backup_root"
   done
 
-  copy_tree_files "$REPO_DIR/agent/playbooks" "$WORKSPACE_DIR/playbooks" "$backup_root"
+  copy_tree_files_if_exists "$REPO_DIR/agent/playbooks" "$WORKSPACE_DIR/playbooks" "$backup_root"
   copy_tree_files "$REPO_DIR/agent/skills" "$WORKSPACE_DIR/skills" "$backup_root"
 
   local rewrite_targets=("$WORKSPACE_DIR/TOOLS.md" "$WORKSPACE_DIR/skills")
