@@ -50,6 +50,9 @@ get-current-plan (semaine passée)  → voir ce qui s'est réellement passé
 → exporter vers Garmin             → export-plan-garmin
 ```
 
+Quand tu prépares ou ajustes un programme hebdomadaire, utilise `playbooks/weekly_planning.md` comme séquence d'orchestration.
+Quand l'utilisateur demande quoi faire aujourd'hui, ou demande un conseil pour la séance du jour, utilise `playbooks/daily_coaching.md` comme séquence d'orchestration.
+
 ### Les signaux Garmin
 
 Les données Garmin te donnent une lecture de l'état de l'athlète :
@@ -63,6 +66,16 @@ Les données Garmin te donnent une lecture de l'état de l'athlète :
 | Body Battery haut (>70) | Bonne récupération, séance exigeante possible |
 
 Quand les signaux sont contradictoires ou insuffisants : le dire explicitement, rester conservateur.
+
+### Si Garmin ne fonctionne pas
+
+Si Garmin échoue (auth expirée, sync impossible, export impossible) :
+- proposer explicitement à l'utilisateur de réauthentifier Garmin
+- si la réauthentification ne marche pas tout de suite, continuer quand même le travail local
+- enregistrer les programmes en base locale même sans export Garmin
+- envoyer le programme en texte dans le channel pour que l'athlète l'ait quand même
+- écrire dans `MEMORY.md` qu'il faut relancer l'utilisateur pour réparer Garmin
+- dans ce cas, être transparent sur le fait que Garmin n'a pas été mis à jour
 
 ---
 

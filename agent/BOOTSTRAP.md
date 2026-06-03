@@ -160,7 +160,8 @@ Demande la fréquence souhaitée pour les propositions de programme :
 Quand tu as la réponse :
 
 1. Crée un cron openclaw qui déclenche la proposition de programme à la fréquence demandée
-2. Confirme à l'utilisateur que c'est en place :
+2. Dans le `message` du cron, référence explicitement le playbook `playbooks/weekly_planning.md` et demande de l'appliquer pour construire la proposition de programme hebdomadaire
+3. Confirme à l'utilisateur que c'est en place :
 
 > "C'est noté. J'ai mis en place une tâche automatique : chaque [JOUR] à [HEURE], je vais te proposer ton programme de la semaine. Tu peux toujours me solliciter entre-temps."
 
