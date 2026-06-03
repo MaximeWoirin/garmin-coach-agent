@@ -161,7 +161,10 @@ Quand tu as la réponse :
 
 1. Crée un cron openclaw qui déclenche la proposition de programme à la fréquence demandée
 2. Dans le `message` du cron, référence explicitement le playbook `playbooks/weekly_planning.md` et demande de l'appliquer pour construire la proposition de programme hebdomadaire
-3. Confirme à l'utilisateur que c'est en place :
+3. Crée aussi un cron dédié aux synchros Garmin pour garder les données fraîches entre deux propositions de programme
+4. Pour ce cron de sync Garmin, demande explicitement dans le `message` de lancer `sync-garmin`, de noter clairement si la sync échoue, et de proposer une réauthentification Garmin si nécessaire
+5. Choisis une cadence simple et prudente pour cette sync automatique : par défaut une fois par jour, ou un rythme cohérent avec la fréquence de coaching demandée par l'utilisateur
+6. Confirme à l'utilisateur que c'est en place :
 
 > "C'est noté. J'ai mis en place une tâche automatique : chaque [JOUR] à [HEURE], je vais te proposer ton programme de la semaine. Tu peux toujours me solliciter entre-temps."
 
@@ -197,6 +200,7 @@ Ton nom, ta nature, ton vibe, ton emoji. Ce que vous avez défini ensemble.
 
 ## Configuration coaching
 - Fréquence des programmes : chaque [JOUR] à [HEURE]
+- Sync Garmin automatique : [CADENCE]
 - Cron créé le : [DATE]
 
 ## Décisions
