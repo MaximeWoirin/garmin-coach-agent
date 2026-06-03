@@ -26,6 +26,9 @@ SELECTED_SKILLS_MODE=""
 SELECTED_SKILLS_CSV=""
 CREATE_AGENT_CONFIG=0
 PATCH_SKILLS_ALLOWLIST=0
+SKIP_SYSTEMD_SYNC=0
+SYNC_ON_CALENDAR="daily"
+SYNC_LOOKBACK_DAYS=3
 
 usage() {
   cat <<'EOF'
@@ -43,6 +46,9 @@ Options:
   --new-agent ID            Create config entry for a new agent, then install into it
   --agent-name NAME         Name to use when creating a new agent
   --update-skills MODE      auto|yes|no (patch skill allowlist when target agent is restricted)
+  --sync-on-calendar SPEC   systemd OnCalendar spec for Garmin sync (default: daily)
+  --sync-lookback-days N    lookback passed to sync-garmin (default: 3)
+  --skip-systemd-sync       Do not install the Garmin sync systemd user timer
   --no-bootstrap            Do not install BOOTSTRAP.md
   --skip-package-install    Copy files only; skip venv/package install
   --dry-run                 Show actions without writing
@@ -59,6 +65,7 @@ What it installs:
   - playbooks   -> <workspace>/playbooks/ (if present in repo)
   - skills      -> <workspace>/skills/
   - app snapshot + venv -> <install-root>/
+  - systemd user timer  -> Garmin sync automatique (unless --skip-systemd-sync)
 EOF
 }
 
@@ -296,6 +303,87 @@ create_venv_and_install() {
     "$venv_dir/bin/python" -m ensurepip --upgrade >/dev/null
     "$venv_dir/bin/python" -m pip install --upgrade pip >/dev/null
     "$venv_dir/bin/python" -m pip install "$app_dir" >/dev/null
+  fi
+}
+
+systemd_user_available() {
+  command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1
+}
+
+install_systemd_sync_timer() {
+  local safe_agent_id="$1"
+  local data_dir="$2"
+  local managed_venv_python="$3"
+  local backup_root="$4"
+  local service_name="garmin-coach-sync-${safe_agent_id}.service"
+  local timer_name="garmin-coach-sync-${safe_agent_id}.timer"
+  local systemd_user_dir="$HOME_DIR/.config/systemd/user"
+  local env_file="$INSTALL_ROOT/systemd/garmin-sync-${safe_agent_id}.env"
+  local service_path="$systemd_user_dir/$service_name"
+  local timer_path="$systemd_user_dir/$timer_name"
+
+  if [[ "$SKIP_SYSTEMD_SYNC" -eq 1 ]]; then
+    log "Skipping Garmin sync systemd timer by request."
+    return
+  fi
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] install systemd user service %s\n' "$service_path"
+    printf '[dry-run] install systemd user timer %s (OnCalendar=%s)\n' "$timer_path" "$SYNC_ON_CALENDAR"
+    return
+  fi
+
+  if [[ ! -x "$managed_venv_python" ]]; then
+    log "Skipping Garmin sync systemd timer because runtime is missing: $managed_venv_python"
+    return
+  fi
+
+  mkdir -p "$data_dir/tokens" "$INSTALL_ROOT/systemd" "$systemd_user_dir"
+
+  backup_if_exists "$env_file" "$backup_root"
+  backup_if_exists "$service_path" "$backup_root"
+  backup_if_exists "$timer_path" "$backup_root"
+
+  cat > "$env_file" <<EOF
+GARMIN_COACH_DB=$data_dir/garmin_coach.db
+GARMIN_COACH_TOKENS_DIR=$data_dir/tokens
+PYTHONUNBUFFERED=1
+EOF
+
+  cat > "$service_path" <<EOF
+[Unit]
+Description=Garmin Coach sync ($SELECTED_AGENT_ID)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=$env_file
+WorkingDirectory=$INSTALL_ROOT
+ExecStart=$managed_venv_python -m garmin_coach.sync_garmin --lookback-days $SYNC_LOOKBACK_DAYS
+EOF
+
+  cat > "$timer_path" <<EOF
+[Unit]
+Description=Garmin Coach sync timer ($SELECTED_AGENT_ID)
+
+[Timer]
+OnCalendar=$SYNC_ON_CALENDAR
+Persistent=true
+RandomizedDelaySec=15m
+Unit=$service_name
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  if systemd_user_available; then
+    systemctl --user daemon-reload
+    systemctl --user enable --now "$timer_name" >/dev/null
+    log "Systemd sync timer: $timer_name ($SYNC_ON_CALENDAR)"
+  else
+    log "Installed Garmin sync timer files, but systemctl --user is unavailable in this session."
+    log "Enable later with: systemctl --user daemon-reload && systemctl --user enable --now $timer_name"
   fi
 }
 
@@ -692,6 +780,18 @@ main() {
         UPDATE_SKILLS_MODE="$2"
         shift 2
         ;;
+      --sync-on-calendar)
+        SYNC_ON_CALENDAR="$2"
+        shift 2
+        ;;
+      --sync-lookback-days)
+        SYNC_LOOKBACK_DAYS="$2"
+        shift 2
+        ;;
+      --skip-systemd-sync)
+        SKIP_SYSTEMD_SYNC=1
+        shift
+        ;;
       --no-bootstrap)
         WITH_BOOTSTRAP=0
         shift
@@ -742,11 +842,13 @@ main() {
   maybe_prompt_or_set_skill_patch
   patch_config_for_target
 
-  local ts backup_root app_dir managed_python
+  local ts backup_root app_dir data_dir managed_python safe_agent_id
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
   backup_root="$INSTALL_ROOT/backups/$ts"
   app_dir="$INSTALL_ROOT/app"
+  data_dir="$INSTALL_ROOT/data"
   managed_python="$(choose_python)"
+  safe_agent_id="${SELECTED_AGENT_ID//[^A-Za-z0-9_.-]/-}"
 
   log "Agent:          $SELECTED_AGENT_ID"
   log "Workspace:      $WORKSPACE_DIR"
@@ -762,7 +864,7 @@ main() {
   fi
 
   if [[ "$DRY_RUN" -eq 0 ]]; then
-    mkdir -p "$WORKSPACE_DIR" "$INSTALL_ROOT" "$backup_root"
+    mkdir -p "$WORKSPACE_DIR" "$INSTALL_ROOT" "$backup_root" "$data_dir/tokens"
   fi
 
   sync_app_snapshot "$app_dir"
@@ -787,6 +889,7 @@ main() {
   fi
 
   rewrite_runtime_paths "$managed_python" "$INSTALL_ROOT/.venv/bin/python" "${rewrite_targets[@]}"
+  install_systemd_sync_timer "$safe_agent_id" "$data_dir" "$INSTALL_ROOT/.venv/bin/python" "$backup_root"
 
   if [[ "$DRY_RUN" -eq 0 ]]; then
     cat > "$INSTALL_ROOT/manifest.txt" <<EOF
@@ -796,8 +899,11 @@ config_path=$CONFIG_PATH
 agent_id=$SELECTED_AGENT_ID
 workspace_dir=$WORKSPACE_DIR
 install_root=$INSTALL_ROOT
+data_dir=$data_dir
 managed_python=$managed_python
 managed_venv=$INSTALL_ROOT/.venv/bin/python
+systemd_sync_timer=garmin-coach-sync-${safe_agent_id}.timer
+systemd_sync_calendar=$SYNC_ON_CALENDAR
 EOF
   fi
 
