@@ -48,6 +48,7 @@ Le script :
 - copie les skills dans `skills/`
 - crée un runtime Python managé dans `<workspace>/.garmin-coach-agent/.venv`
 - installe un timer `systemd --user` pour la sync Garmin automatique (par défaut `OnCalendar=daily`)
+- installe un timer `systemd --user` pour exporter chaque jour vers Garmin les séances prévues demain
 - réécrit les commandes des skills pour pointer vers ce runtime
 - sauvegarde les fichiers remplacés dans `.garmin-coach-agent/backups/<timestamp>/`
 - sauvegarde aussi la config OpenClaw avant patch si un agent ou une allowlist doit être créé(e)
@@ -59,7 +60,9 @@ Options utiles :
 ./scripts/install-openclaw-agent.sh --agent main
 ./scripts/install-openclaw-agent.sh --new-agent coach-garmin --agent-name "Garmin Coach"
 ./scripts/install-openclaw-agent.sh --sync-on-calendar '*-*-* 06:00:00'
+./scripts/install-openclaw-agent.sh --export-on-calendar '*-*-* 07:00:00'
 ./scripts/install-openclaw-agent.sh --skip-systemd-sync
+./scripts/install-openclaw-agent.sh --skip-systemd-export
 ./scripts/install-openclaw-agent.sh --workspace /chemin/vers/workspace
 ./scripts/install-openclaw-agent.sh --no-bootstrap
 ```

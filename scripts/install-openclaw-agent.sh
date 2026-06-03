@@ -27,7 +27,9 @@ SELECTED_SKILLS_CSV=""
 CREATE_AGENT_CONFIG=0
 PATCH_SKILLS_ALLOWLIST=0
 SKIP_SYSTEMD_SYNC=0
+SKIP_SYSTEMD_EXPORT=0
 SYNC_ON_CALENDAR="daily"
+EXPORT_ON_CALENDAR="daily"
 SYNC_LOOKBACK_DAYS=3
 
 usage() {
@@ -47,8 +49,10 @@ Options:
   --agent-name NAME         Name to use when creating a new agent
   --update-skills MODE      auto|yes|no (patch skill allowlist when target agent is restricted)
   --sync-on-calendar SPEC   systemd OnCalendar spec for Garmin sync (default: daily)
+  --export-on-calendar SPEC systemd OnCalendar spec for plan export (default: daily)
   --sync-lookback-days N    lookback passed to sync-garmin (default: 3)
   --skip-systemd-sync       Do not install the Garmin sync systemd user timer
+  --skip-systemd-export     Do not install the plan export systemd user timer
   --no-bootstrap            Do not install BOOTSTRAP.md
   --skip-package-install    Copy files only; skip venv/package install
   --dry-run                 Show actions without writing
@@ -66,6 +70,7 @@ What it installs:
   - skills      -> <workspace>/skills/
   - app snapshot + venv -> <install-root>/
   - systemd user timer  -> Garmin sync automatique (unless --skip-systemd-sync)
+  - systemd user timer  -> export quotidien des plans du lendemain (unless --skip-systemd-export)
 EOF
 }
 
@@ -310,15 +315,32 @@ systemd_user_available() {
   command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1
 }
 
-install_systemd_sync_timer() {
+write_systemd_runtime_env() {
   local safe_agent_id="$1"
   local data_dir="$2"
-  local managed_venv_python="$3"
-  local backup_root="$4"
+  local backup_root="$3"
+  local env_file="$INSTALL_ROOT/systemd/garmin-runtime-${safe_agent_id}.env"
+
+  mkdir -p "$data_dir/tokens" "$INSTALL_ROOT/systemd"
+  backup_if_exists "$env_file" "$backup_root"
+
+  cat > "$env_file" <<EOF
+GARMIN_COACH_DB=$data_dir/garmin_coach.db
+GARMIN_COACH_TOKENS_DIR=$data_dir/tokens
+PYTHONUNBUFFERED=1
+EOF
+
+  printf '%s' "$env_file"
+}
+
+install_systemd_sync_timer() {
+  local safe_agent_id="$1"
+  local managed_venv_python="$2"
+  local backup_root="$3"
+  local env_file="$4"
   local service_name="garmin-coach-sync-${safe_agent_id}.service"
   local timer_name="garmin-coach-sync-${safe_agent_id}.timer"
   local systemd_user_dir="$HOME_DIR/.config/systemd/user"
-  local env_file="$INSTALL_ROOT/systemd/garmin-sync-${safe_agent_id}.env"
   local service_path="$systemd_user_dir/$service_name"
   local timer_path="$systemd_user_dir/$timer_name"
 
@@ -338,17 +360,10 @@ install_systemd_sync_timer() {
     return
   fi
 
-  mkdir -p "$data_dir/tokens" "$INSTALL_ROOT/systemd" "$systemd_user_dir"
+  mkdir -p "$systemd_user_dir"
 
-  backup_if_exists "$env_file" "$backup_root"
   backup_if_exists "$service_path" "$backup_root"
   backup_if_exists "$timer_path" "$backup_root"
-
-  cat > "$env_file" <<EOF
-GARMIN_COACH_DB=$data_dir/garmin_coach.db
-GARMIN_COACH_TOKENS_DIR=$data_dir/tokens
-PYTHONUNBUFFERED=1
-EOF
 
   cat > "$service_path" <<EOF
 [Unit]
@@ -383,6 +398,126 @@ EOF
     log "Systemd sync timer: $timer_name ($SYNC_ON_CALENDAR)"
   else
     log "Installed Garmin sync timer files, but systemctl --user is unavailable in this session."
+    log "Enable later with: systemctl --user daemon-reload && systemctl --user enable --now $timer_name"
+  fi
+}
+
+install_systemd_export_timer() {
+  local safe_agent_id="$1"
+  local managed_venv_python="$2"
+  local backup_root="$3"
+  local env_file="$4"
+  local service_name="garmin-coach-export-${safe_agent_id}.service"
+  local timer_name="garmin-coach-export-${safe_agent_id}.timer"
+  local systemd_user_dir="$HOME_DIR/.config/systemd/user"
+  local helper_script="$INSTALL_ROOT/systemd/export-tomorrow-${safe_agent_id}.sh"
+  local service_path="$systemd_user_dir/$service_name"
+  local timer_path="$systemd_user_dir/$timer_name"
+
+  if [[ "$SKIP_SYSTEMD_EXPORT" -eq 1 ]]; then
+    log "Skipping Garmin export systemd timer by request."
+    return
+  fi
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] install export helper %s\n' "$helper_script"
+    printf '[dry-run] install systemd user service %s\n' "$service_path"
+    printf '[dry-run] install systemd user timer %s (OnCalendar=%s)\n' "$timer_path" "$EXPORT_ON_CALENDAR"
+    return
+  fi
+
+  if [[ ! -x "$managed_venv_python" ]]; then
+    log "Skipping Garmin export systemd timer because runtime is missing: $managed_venv_python"
+    return
+  fi
+
+  mkdir -p "$INSTALL_ROOT/systemd" "$systemd_user_dir"
+
+  backup_if_exists "$helper_script" "$backup_root"
+  backup_if_exists "$service_path" "$backup_root"
+  backup_if_exists "$timer_path" "$backup_root"
+
+  cat > "$helper_script" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+readarray -t export_info < <("$managed_venv_python" - <<'PY'
+import os
+import sqlite3
+from datetime import date, timedelta
+
+db_path = os.environ.get("GARMIN_COACH_DB", "")
+tomorrow = date.today() + timedelta(days=1)
+week_start = tomorrow - timedelta(days=tomorrow.weekday())
+plan_id = ""
+
+if db_path and os.path.exists(db_path):
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM training_plans WHERE week_start=? AND status IN ('active', 'draft') ORDER BY id DESC LIMIT 1",
+            (week_start.isoformat(),),
+        ).fetchone()
+        if row:
+            plan_id = str(row[0])
+    finally:
+        conn.close()
+
+print(tomorrow.isoformat())
+print(week_start.isoformat())
+print(plan_id)
+PY
+)
+
+tomorrow="\${export_info[0]}"
+week_start="\${export_info[1]}"
+plan_id="\${export_info[2]:-}"
+
+if [[ -z "$plan_id" ]]; then
+  echo "No active/draft plan found for week $week_start; skipping Garmin export."
+  exit 0
+fi
+
+exec "$managed_venv_python" -m garmin_coach.export_plan_garmin \
+  --plan-id "$plan_id" \
+  --start-date "$tomorrow" \
+  --end-date "$tomorrow"
+EOF
+  chmod +x "$helper_script"
+
+  cat > "$service_path" <<EOF
+[Unit]
+Description=Garmin Coach export tomorrow plan ($SELECTED_AGENT_ID)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=$env_file
+WorkingDirectory=$INSTALL_ROOT
+ExecStart=$helper_script
+EOF
+
+  cat > "$timer_path" <<EOF
+[Unit]
+Description=Garmin Coach export timer ($SELECTED_AGENT_ID)
+
+[Timer]
+OnCalendar=$EXPORT_ON_CALENDAR
+Persistent=true
+RandomizedDelaySec=15m
+Unit=$service_name
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  if systemd_user_available; then
+    systemctl --user daemon-reload
+    systemctl --user enable --now "$timer_name" >/dev/null
+    log "Systemd export timer: $timer_name ($EXPORT_ON_CALENDAR)"
+  else
+    log "Installed Garmin export timer files, but systemctl --user is unavailable in this session."
     log "Enable later with: systemctl --user daemon-reload && systemctl --user enable --now $timer_name"
   fi
 }
@@ -784,12 +919,20 @@ main() {
         SYNC_ON_CALENDAR="$2"
         shift 2
         ;;
+      --export-on-calendar)
+        EXPORT_ON_CALENDAR="$2"
+        shift 2
+        ;;
       --sync-lookback-days)
         SYNC_LOOKBACK_DAYS="$2"
         shift 2
         ;;
       --skip-systemd-sync)
         SKIP_SYSTEMD_SYNC=1
+        shift
+        ;;
+      --skip-systemd-export)
+        SKIP_SYSTEMD_EXPORT=1
         shift
         ;;
       --no-bootstrap)
@@ -842,7 +985,7 @@ main() {
   maybe_prompt_or_set_skill_patch
   patch_config_for_target
 
-  local ts backup_root app_dir data_dir managed_python safe_agent_id
+  local ts backup_root app_dir data_dir managed_python safe_agent_id runtime_env_file
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
   backup_root="$INSTALL_ROOT/backups/$ts"
   app_dir="$INSTALL_ROOT/app"
@@ -889,7 +1032,15 @@ main() {
   fi
 
   rewrite_runtime_paths "$managed_python" "$INSTALL_ROOT/.venv/bin/python" "${rewrite_targets[@]}"
-  install_systemd_sync_timer "$safe_agent_id" "$data_dir" "$INSTALL_ROOT/.venv/bin/python" "$backup_root"
+
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    runtime_env_file="$(write_systemd_runtime_env "$safe_agent_id" "$data_dir" "$backup_root")"
+  else
+    runtime_env_file="$INSTALL_ROOT/systemd/garmin-runtime-${safe_agent_id}.env"
+  fi
+
+  install_systemd_sync_timer "$safe_agent_id" "$INSTALL_ROOT/.venv/bin/python" "$backup_root" "$runtime_env_file"
+  install_systemd_export_timer "$safe_agent_id" "$INSTALL_ROOT/.venv/bin/python" "$backup_root" "$runtime_env_file"
 
   if [[ "$DRY_RUN" -eq 0 ]]; then
     cat > "$INSTALL_ROOT/manifest.txt" <<EOF
@@ -902,8 +1053,11 @@ install_root=$INSTALL_ROOT
 data_dir=$data_dir
 managed_python=$managed_python
 managed_venv=$INSTALL_ROOT/.venv/bin/python
+systemd_runtime_env=$runtime_env_file
 systemd_sync_timer=garmin-coach-sync-${safe_agent_id}.timer
 systemd_sync_calendar=$SYNC_ON_CALENDAR
+systemd_export_timer=garmin-coach-export-${safe_agent_id}.timer
+systemd_export_calendar=$EXPORT_ON_CALENDAR
 EOF
   fi
 
