@@ -14,7 +14,7 @@ description: Use to delete a constraint that was created by mistake.
 ## Commande
 
 ```bash
-python -m garmin_coach.delete_constraint \
+<EXEC_DIR>/delete-constraint \
   --constraint-id N \
   [--dry-run]
 ```

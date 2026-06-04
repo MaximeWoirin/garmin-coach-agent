@@ -14,7 +14,7 @@ description: Use to switch a stored constraint between active and inactive.
 ## Commande
 
 ```bash
-python -m garmin_coach.set_constraint_status \
+<EXEC_DIR>/set-constraint-status \
   --constraint-id N \
   --status active|inactive \
   [--dry-run]

@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Point d'entrée CLI : export-plan-garmin
-exec python3 -m garmin_coach.export_plan_garmin "$@"

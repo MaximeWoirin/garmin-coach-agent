@@ -14,7 +14,7 @@ description: Use when Garmin authentication fails, first-time setup is required,
 ## Commande
 
 ```bash
-python -m garmin_coach.auth_garmin \
+<EXEC_DIR>/auth-garmin \
   [--tokens-dir DIR] \
   [--email EMAIL] \
   [--password PASSWORD] \

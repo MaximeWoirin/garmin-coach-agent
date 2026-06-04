@@ -14,7 +14,7 @@ description: Use to read imported Garmin activities on an explicit date range.
 ## Commande
 
 ```bash
-python -m garmin_coach.get_activities \
+<EXEC_DIR>/get-activities \
   --start YYYY-MM-DD \
   --end YYYY-MM-DD \
   [--limit N] \

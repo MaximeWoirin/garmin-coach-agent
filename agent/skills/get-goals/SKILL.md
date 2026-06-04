@@ -14,7 +14,7 @@ description: Use to read training goals stored in the local database.
 ## Commande
 
 ```bash
-python -m garmin_coach.get_goals \
+<EXEC_DIR>/get-goals \
   [--status active|archived|completed|canceled] \
   [--limit N] \
   [--include-archived]

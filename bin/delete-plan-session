@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Point d'entrée CLI : delete-plan-session
-exec python3 -m garmin_coach.delete_plan_session "$@"

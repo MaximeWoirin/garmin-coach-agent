@@ -15,7 +15,7 @@ description: Use to move one session through its local/session publication lifec
 ## Commande
 
 ```bash
-python -m garmin_coach.set_plan_session_status \
+<EXEC_DIR>/set-plan-session-status \
   --plan-id N \
   --session-id N \
   --status draft|proposed|exported|done|skipped|canceled \

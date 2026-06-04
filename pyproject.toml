@@ -15,6 +15,25 @@ dev = [
     "ruff>=0.1.0",
 ]
 
+[project.scripts]
+auth-garmin = "garmin_coach.auth_garmin:main"
+create-constraint = "garmin_coach.create_constraint:main"
+create-goal = "garmin_coach.create_goal:main"
+create-plan-draft = "garmin_coach.create_plan_draft:main"
+create-plan-session = "garmin_coach.create_plan_session:main"
+delete-constraint = "garmin_coach.delete_constraint:main"
+delete-plan-session = "garmin_coach.delete_plan_session:main"
+export-plan-garmin = "garmin_coach.export_plan_garmin:main"
+get-activities = "garmin_coach.get_activities:main"
+get-constraints = "garmin_coach.get_constraints:main"
+get-current-plan = "garmin_coach.get_current_plan:main"
+get-fitness-state = "garmin_coach.get_fitness_state:main"
+get-goals = "garmin_coach.get_goals:main"
+set-constraint-status = "garmin_coach.set_constraint_status:main"
+set-plan-session-status = "garmin_coach.set_plan_session_status:main"
+set-plan-status = "garmin_coach.set_plan_status:main"
+sync-garmin = "garmin_coach.sync_garmin:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

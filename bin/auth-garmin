@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Point d'entrée CLI : auth-garmin
-exec python3 -m garmin_coach.auth_garmin "$@"

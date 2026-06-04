@@ -15,7 +15,7 @@ description: Use immediately when the user mentions an injury, availability issu
 ## Commande
 
 ```bash
-python -m garmin_coach.create_constraint \
+<EXEC_DIR>/create-constraint \
   --type TYPE \
   --start-date YYYY-MM-DD \
   --raw-text "..." \

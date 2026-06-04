@@ -22,7 +22,7 @@ Le statut du plan est **local**.
 ## Commande
 
 ```bash
-python -m garmin_coach.set_plan_status \
+<EXEC_DIR>/set-plan-status \
   --plan-id N \
   --status draft|active|sent|archived \
   [--cascade-sessions] \

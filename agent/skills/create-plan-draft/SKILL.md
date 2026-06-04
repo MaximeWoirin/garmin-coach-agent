@@ -14,7 +14,7 @@ description: Use to create a local weekly plan shell before adding sessions.
 ## Commande
 
 ```bash
-python -m garmin_coach.create_plan_draft \
+<EXEC_DIR>/create-plan-draft \
   --week-start YYYY-MM-DD \
   --week-end YYYY-MM-DD \
   [--goal-id N] \

@@ -14,7 +14,7 @@ description: Use when the user defines a new training objective or a target even
 ## Commande
 
 ```bash
-python -m garmin_coach.create_goal \
+<EXEC_DIR>/create-goal \
   --primary-goal "..." \
   [--goal-code CODE] \
   [--priority low|medium|high] \

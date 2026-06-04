@@ -14,7 +14,7 @@ description: Use to read the current plan, or a targeted plan by id or week.
 ## Commande
 
 ```bash
-python -m garmin_coach.get_current_plan \
+<EXEC_DIR>/get-current-plan \
   [--plan-id N] \
   [--week-start YYYY-MM-DD] \
   [--include-sessions] \

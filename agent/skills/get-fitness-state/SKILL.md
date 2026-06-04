@@ -14,7 +14,7 @@ description: Use to read daily metrics on an explicit date range before planning
 ## Commande
 
 ```bash
-python -m garmin_coach.get_fitness_state \
+<EXEC_DIR>/get-fitness-state \
   --start YYYY-MM-DD \
   --end YYYY-MM-DD \
   [--limit N]

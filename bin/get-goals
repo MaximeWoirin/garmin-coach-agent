@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Point d'entrée CLI : get-goals
-exec python3 -m garmin_coach.get_goals "$@"

@@ -14,7 +14,7 @@ description: Use to read stored constraints before planning or adaptation.
 ## Commande
 
 ```bash
-python -m garmin_coach.get_constraints \
+<EXEC_DIR>/get-constraints \
   [--scope training|life|day|session] \
   [--status active|inactive] \
   [--limit N]

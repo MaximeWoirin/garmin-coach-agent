@@ -14,7 +14,7 @@ description: Use to import Garmin activities and daily metrics into the local da
 ## Commande
 
 ```bash
-python -m garmin_coach.sync_garmin \
+<EXEC_DIR>/sync-garmin \
   [--start YYYY-MM-DD] \
   [--end YYYY-MM-DD] \
   [--lookback-days N]

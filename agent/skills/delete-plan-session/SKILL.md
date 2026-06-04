@@ -19,7 +19,7 @@ description: Use to delete a non-exported, non-completed plan session.
 ## Commande
 
 ```bash
-python -m garmin_coach.delete_plan_session \
+<EXEC_DIR>/delete-plan-session \
   --plan-id N \
   --session-id N \
   [--dry-run]

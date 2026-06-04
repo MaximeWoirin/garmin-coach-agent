@@ -135,7 +135,7 @@ load_garmin_skills() {
   GARMIN_SKILLS=()
   while IFS= read -r skill; do
     [[ -n "$skill" ]] && GARMIN_SKILLS+=("$skill")
-  done < <(find "$REPO_DIR/agent/skills" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+  done < <(find "$REPO_DIR/agent/skills" -mindepth 1 -maxdepth 1 -type d | sed 's|.*/||' | sort)
 }
 
 choose_python() {
@@ -231,7 +231,6 @@ sync_app_snapshot() {
 
   cp -a "$REPO_DIR/garmin_coach" "$app_dir/"
   cp -a "$REPO_DIR/migrations" "$app_dir/"
-  cp -a "$REPO_DIR/bin" "$app_dir/"
   cp -a "$REPO_DIR/pyproject.toml" "$app_dir/"
   cp -a "$REPO_DIR/README.md" "$app_dir/"
   cp -a "$REPO_DIR/SPEC.md" "$app_dir/"
@@ -239,15 +238,15 @@ sync_app_snapshot() {
 
 rewrite_runtime_paths() {
   local rewrite_python="$1"
-  local managed_python="$2"
+  local managed_bin_dir="$2"
   shift 2
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    printf '[dry-run] rewrite runtime paths with %s in %s\n' "$managed_python" "$*"
+    printf '[dry-run] rewrite runtime paths with %s in %s\n' "$managed_bin_dir" "$*"
     return
   fi
 
-  export MANAGED_PYTHON="$managed_python"
+  export MANAGED_BIN_DIR="$managed_bin_dir"
   "$rewrite_python" - "$@" <<'PY'
 from __future__ import annotations
 import os
@@ -255,8 +254,8 @@ import pathlib
 import re
 import sys
 
-managed_python = os.environ["MANAGED_PYTHON"]
-pattern = re.compile(r"\bpython -m garmin_coach\.")
+managed_bin_dir = os.environ["MANAGED_BIN_DIR"]
+pattern = re.compile(r"<EXEC_DIR>")
 
 for raw_path in sys.argv[1:]:
     path = pathlib.Path(raw_path)
@@ -266,7 +265,7 @@ for raw_path in sys.argv[1:]:
         files = [path]
     for file in files:
         text = file.read_text(encoding="utf-8")
-        updated = pattern.sub(f"{managed_python} -m garmin_coach.", text)
+        updated = pattern.sub(managed_bin_dir, text)
         if updated != text:
             file.write_text(updated, encoding="utf-8")
 PY
@@ -722,15 +721,42 @@ main() {
 
   load_garmin_skills
 
-  if [[ -n "$WORKSPACE_DIR" && -z "$TARGET_AGENT_ID" && -z "$NEW_AGENT_ID" && ! is_tty ]]; then
+  if ! config_exists; then
+    if [[ -n "$TARGET_AGENT_ID" || -n "$NEW_AGENT_ID" ]]; then
+      die "Cannot use --agent or --new-agent because OpenClaw config was not found at $CONFIG_PATH."
+    fi
+    log "Warning: OpenClaw configuration file not found at: $CONFIG_PATH"
+    if [[ -z "$WORKSPACE_DIR" ]]; then
+      if is_tty; then
+        log "No OpenClaw workspace is specified."
+        WORKSPACE_DIR="$(prompt_line 'OpenClaw workspace absolute path' '')"
+        if [[ -z "$WORKSPACE_DIR" ]]; then
+          die "OpenClaw workspace is required for installation."
+        fi
+        WORKSPACE_DIR="${WORKSPACE_DIR/#\~/$HOME_DIR}"
+      else
+        die "No OpenClaw configuration found at $CONFIG_PATH and no workspace specified via --workspace."
+      fi
+    fi
     SELECTED_AGENT_ID="main"
     SELECTED_AGENT_NAME="Main Agent"
     SELECTED_AGENT_WORKSPACE="$WORKSPACE_DIR"
     SELECTED_AGENT_DIR="$HOME_DIR/.openclaw/agents/main/agent"
     SELECTED_SKILLS_MODE="unrestricted"
     SELECTED_SKILLS_CSV=""
+    CREATE_AGENT_CONFIG=0
+    PATCH_SKILLS_ALLOWLIST=0
   else
-    maybe_select_target_from_config
+    if [[ -n "$WORKSPACE_DIR" && -z "$TARGET_AGENT_ID" && -z "$NEW_AGENT_ID" && ! is_tty ]]; then
+      SELECTED_AGENT_ID="main"
+      SELECTED_AGENT_NAME="Main Agent"
+      SELECTED_AGENT_WORKSPACE="$WORKSPACE_DIR"
+      SELECTED_AGENT_DIR="$HOME_DIR/.openclaw/agents/main/agent"
+      SELECTED_SKILLS_MODE="unrestricted"
+      SELECTED_SKILLS_CSV=""
+    else
+      maybe_select_target_from_config
+    fi
   fi
 
   [[ -n "$SELECTED_AGENT_WORKSPACE" ]] || die "No target workspace resolved"
@@ -786,8 +812,26 @@ main() {
     rewrite_targets+=("$WORKSPACE_DIR/BOOTSTRAP.md")
   fi
 
-  rewrite_runtime_paths "$managed_python" "$INSTALL_ROOT/.venv/bin/python" "${rewrite_targets[@]}"
+  rewrite_runtime_paths "$managed_python" "$INSTALL_ROOT/.venv/bin" "${rewrite_targets[@]}"
 
+  local cmds=(
+    auth-garmin create-constraint create-goal create-plan-draft
+    create-plan-session delete-constraint delete-plan-session
+    export-plan-garmin get-activities get-constraints get-current-plan
+    get-fitness-state get-goals set-constraint-status set-plan-session-status
+    set-plan-status sync-garmin
+  )
+
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    mkdir -p "$WORKSPACE_DIR/bin"
+    mkdir -p "$HOME_DIR/.local/bin"
+    for cmd in "${cmds[@]}"; do
+      ln -sf "$INSTALL_ROOT/.venv/bin/$cmd" "$WORKSPACE_DIR/bin/$cmd"
+      ln -sf "$INSTALL_ROOT/.venv/bin/$cmd" "$HOME_DIR/.local/bin/$cmd"
+    done
+  else
+    printf '[dry-run] create symlinks in %s/bin and %s/.local/bin\n' "$WORKSPACE_DIR" "$HOME_DIR"
+  fi
   if [[ "$DRY_RUN" -eq 0 ]]; then
     cat > "$INSTALL_ROOT/manifest.txt" <<EOF
 installed_at=$ts
@@ -797,12 +841,12 @@ agent_id=$SELECTED_AGENT_ID
 workspace_dir=$WORKSPACE_DIR
 install_root=$INSTALL_ROOT
 managed_python=$managed_python
-managed_venv=$INSTALL_ROOT/.venv/bin/python
+managed_venv=$INSTALL_ROOT/.venv/bin
 EOF
   fi
 
   log "Install done."
-  log "Managed runtime: $INSTALL_ROOT/.venv/bin/python"
+  log "Managed bin dir: $INSTALL_ROOT/.venv/bin"
   log "Agent files:     $WORKSPACE_DIR"
   log "Skills:          $WORKSPACE_DIR/skills"
 }

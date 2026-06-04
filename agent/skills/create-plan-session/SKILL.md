@@ -14,7 +14,7 @@ description: Use after create-plan-draft to add one session to a plan.
 ## Commande
 
 ```bash
-python -m garmin_coach.create_plan_session \
+<EXEC_DIR>/create-plan-session \
   --plan-id N \
   --planned-date YYYY-MM-DD \
   --activity-type TYPE \

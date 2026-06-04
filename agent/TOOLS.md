@@ -1,8 +1,8 @@
 # TOOLS.md — Garmin Coach Agent
 
-Invocation canonique: `python -m garmin_coach.<module>`.
+Invocation canonique: `<EXEC_DIR>/<script-name>`.
 
-Les fichiers `bin/*` sont seulement des wrappers locaux. La doc agent doit toujours référencer les modules Python comme contrat public.
+Les scripts CLI générés par `[project.scripts]` sont le contrat public de l'agent.
 
 ## Données Garmin
 

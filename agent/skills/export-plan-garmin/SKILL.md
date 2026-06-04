@@ -22,7 +22,7 @@ description: Use to export plan sessions to Garmin Connect on a short horizon.
 ## Commande
 
 ```bash
-python -m garmin_coach.export_plan_garmin \
+<EXEC_DIR>/export-plan-garmin \
   (--plan-id N | --week-start YYYY-MM-DD) \
   [--start-date YYYY-MM-DD] \
   [--end-date YYYY-MM-DD] \

@@ -56,7 +56,7 @@ On sépare clairement :
 │       ├── weekly_planning.md
 │       ├── sync_and_review.md
 │       └── fallback_no_garmin.md
-├── bin/
+├── [project.scripts]
 │   ├── auth-garmin
 │   ├── sync-garmin
 │   ├── export-plan-garmin
@@ -130,7 +130,7 @@ Responsabilités :
 Ce dossier ne doit pas devenir un fourre-tout.
 La mémoire runtime volatile doit vivre hors Git.
 
-### `bin/`
+### Console Scripts (`[project.scripts]`)
 Contient les scripts d’entrée appelés par l’agent ou par cron.
 
 Règle :
@@ -288,25 +288,25 @@ Tout le code Garmin reste groupé dans `garmin_coach/garmin/`.
 ## Flux type
 
 ### Auth
-- `bin/auth-garmin`
+- `auth-garmin`
 - appelle `garmin_coach.garmin.auth`
 - écrit les tokens
 
 ### Sync
-- `bin/sync-garmin`
+- `sync-garmin`
 - appelle `garmin_coach.garmin.sync`
 - écrit activités + métriques + réconciliation
 
 ### Lecture contraintes
-- `bin/get-constraints`
+- `get-constraints`
 - appelle `garmin_coach.constraints.read`
 
 ### Création session
-- `bin/create-plan-session`
+- `create-plan-session`
 - appelle `garmin_coach.plans.write`
 
 ### Export Garmin
-- `bin/export-plan-garmin`
+- `export-plan-garmin`
 - appelle `garmin_coach.garmin.export`
 
 ## Ce qu’on évite
@@ -321,6 +321,6 @@ Tout le code Garmin reste groupé dans `garmin_coach/garmin/`.
 
 Pour la V0, il faut un **vrai petit projet Python**, pas une collection de scripts isolés.
 
-- `bin/` = interfaces CLI
+- `[project.scripts]` = interfaces CLI
 - `garmin_coach/` = logique partagée
 - `docs/spec/` = contrat et architecture
