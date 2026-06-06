@@ -10,6 +10,9 @@ from typing import Any
 from garmin_coach.db import db_connection, fetchall_dicts
 from garmin_coach.garmin.client import get_client
 from garmin_coach.jsonio import error_response, partial_response, success_response
+from garmin_coach.logging import get_logger
+
+logger = get_logger("garmin.sync")
 
 
 def sync(
@@ -34,6 +37,15 @@ def sync(
     warnings: list[str] = []
     errors: list[str] = []
 
+    logger.info(
+        "Starting Garmin synchronization",
+        extra={
+            "start_date": start_date.isoformat() if start_date else None,
+            "end_date": end_date.isoformat() if end_date else None,
+            "lookback_days": lookback_days,
+        },
+    )
+
     with db_connection(db_path) as conn:
         today = date.today()
         if end_date is None:
@@ -43,6 +55,11 @@ def sync(
 
         range_start = start_date.isoformat()
         range_end = end_date.isoformat()
+
+        logger.info(
+            "Sync date range resolved",
+            extra={"range_start": range_start, "range_end": range_end},
+        )
 
         # Enregistrer le début de sync
         started_at = datetime.now(UTC).isoformat()
@@ -55,8 +72,10 @@ def sync(
         sync_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         try:
+            logger.debug("Initializing Garmin client")
             client = get_client(tokens_dir)
         except Exception as exc:
+            logger.error("Failed to initialize Garmin client", exc_info=True)
             _finish_sync(conn, sync_id, "failed", error_message=str(exc))
             return error_response([f"Garmin client error: {exc}"])
 
@@ -66,16 +85,33 @@ def sync(
         activities_updated = 0
 
         try:
-            activities = client.get_activities_by_date(
-                range_start, range_end, activitytype=""
-            )
+            logger.info("Fetching activities from Garmin Connect")
+            activities = client.get_activities_by_date(range_start, range_end, activitytype="")
             activities_seen = len(activities)
+            logger.info("Fetched activities successfully", extra={"count": activities_seen})
 
             for act in activities:
                 inserted, updated = _upsert_activity(conn, act)
                 activities_inserted += inserted
                 activities_updated += updated
+                if inserted:
+                    logger.debug(
+                        "Inserted new activity",
+                        extra={
+                            "activity_id": act.get("activityId"),
+                            "name": act.get("activityName"),
+                        },
+                    )
+                elif updated:
+                    logger.debug(
+                        "Updated existing activity",
+                        extra={
+                            "activity_id": act.get("activityId"),
+                            "name": act.get("activityName"),
+                        },
+                    )
         except Exception as exc:
+            logger.error("Error during activities synchronization", exc_info=True)
             errors.append(f"Activities sync error: {exc}")
 
         # Import des daily metrics
@@ -83,26 +119,61 @@ def sync(
         daily_metrics_upserted = 0
 
         try:
+            logger.info("Fetching daily metrics from Garmin Connect")
             current = start_date
             while current <= end_date:
+                logger.debug("Fetching daily metrics for date", extra={"date": current.isoformat()})
                 metrics = _fetch_daily_metrics(client, current)
                 if metrics:
                     daily_metrics_seen += 1
-                    daily_metrics_upserted += _upsert_daily_metrics(conn, current, metrics)
+                    upserted = _upsert_daily_metrics(conn, current, metrics)
+                    daily_metrics_upserted += upserted
+                    logger.debug("Upserted daily metrics", extra={"date": current.isoformat()})
+                else:
+                    logger.debug(
+                        "No daily metrics found for date",
+                        extra={"date": current.isoformat()},
+                    )
                 current += timedelta(days=1)
         except Exception as exc:
+            logger.error("Error during daily metrics synchronization", exc_info=True)
             errors.append(f"Daily metrics sync error: {exc}")
 
         # Réconciliation plan ↔ activités
         reconciled_sessions = 0
         matched_activities = 0
         try:
+            logger.info("Starting reconciliation between plan sessions and actual activities")
             reconciled_sessions, matched_activities = _reconcile_plan(conn, start_date, end_date)
+            logger.info(
+                "Reconciliation finished",
+                extra={
+                    "reconciled_sessions": reconciled_sessions,
+                    "matched_activities": matched_activities,
+                },
+            )
         except Exception as exc:
+            logger.warning("Reconciliation warning/error", exc_info=True)
             warnings.append(f"Reconciliation warning: {exc}")
 
         # Finaliser le sync run
         status = "success" if not errors else "partial"
+        logger.info(
+            "Finalizing sync run",
+            extra={
+                "sync_id": sync_id,
+                "status": status,
+                "activities_seen": activities_seen,
+                "activities_inserted": activities_inserted,
+                "activities_updated": activities_updated,
+                "daily_metrics_seen": daily_metrics_seen,
+                "daily_metrics_upserted": daily_metrics_upserted,
+                "reconciled_sessions": reconciled_sessions,
+                "matched_activities": matched_activities,
+                "errors_count": len(errors),
+                "warnings_count": len(warnings),
+            },
+        )
         _finish_sync(
             conn,
             sync_id,
@@ -212,7 +283,9 @@ def _fetch_daily_metrics(client: Any, metric_date: date) -> dict[str, Any] | Non
     return None
 
 
-def _upsert_daily_metrics(conn: sqlite3.Connection, metric_date: date, metrics: dict[str, Any]) -> int:
+def _upsert_daily_metrics(
+    conn: sqlite3.Connection, metric_date: date, metrics: dict[str, Any]
+) -> int:
     """Insère ou met à jour les métriques journalières. Retourne 1 si upsert."""
     date_str = metric_date.isoformat()
     existing = conn.execute(
@@ -320,8 +393,19 @@ def _reconcile_plan(conn: sqlite3.Connection, start_date: date, end_date: date) 
                     (session["id"], activity[0]),
                 )
                 conn.execute(
-                    "UPDATE plan_sessions SET status='done', updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    """UPDATE plan_sessions
+                       SET status='done', updated_at=CURRENT_TIMESTAMP
+                       WHERE id=?""",
                     (session["id"],),
+                )
+                logger.info(
+                    "Reconciled plan session with activity",
+                    extra={
+                        "plan_session_id": session["id"],
+                        "activity_id": activity[0],
+                        "planned_date": session["planned_date"],
+                        "activity_type": session["activity_type"],
+                    },
                 )
                 matched += 1
             reconciled += 1

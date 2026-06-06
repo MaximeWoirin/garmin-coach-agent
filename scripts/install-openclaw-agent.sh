@@ -11,6 +11,7 @@ INSTALL_ROOT="${OPENCLAW_INSTALL_ROOT:-}"
 PYTHON_BIN=""
 DRY_RUN=0
 WITH_BOOTSTRAP=1
+PRESERVE_AGENT_CORE=0
 SKIP_PACKAGE_INSTALL=0
 QUIET=0
 TARGET_AGENT_ID=""
@@ -54,6 +55,7 @@ Options:
   --skip-systemd-sync       Do not install the Garmin sync systemd user timer
   --skip-systemd-export     Do not install the plan export systemd user timer
   --no-bootstrap            Do not install BOOTSTRAP.md
+  --preserve-agent-core     Do not overwrite HEARTBEAT.md, IDENTITY.md, SOUL.md if they exist
   --skip-package-install    Copy files only; skip venv/package install
   --dry-run                 Show actions without writing
   --quiet                   Reduce logs
@@ -938,6 +940,10 @@ main() {
         WITH_BOOTSTRAP=0
         shift
         ;;
+      --preserve-agent-core)
+        PRESERVE_AGENT_CORE=1
+        shift
+        ;;
       --skip-package-install)
         SKIP_PACKAGE_INSTALL=1
         shift
@@ -1039,10 +1045,19 @@ main() {
   sync_app_snapshot "$app_dir"
   create_venv_and_install "$managed_python" "$INSTALL_ROOT/.venv" "$app_dir"
 
-  local root_files=(AGENTS.md HEARTBEAT.md IDENTITY.md README.md SOUL.md TOOLS.md)
+  local root_files=(AGENTS.md README.md TOOLS.md)
   if [[ "$WITH_BOOTSTRAP" -eq 1 ]]; then
     root_files+=(BOOTSTRAP.md)
   fi
+
+  local core_files=(HEARTBEAT.md IDENTITY.md SOUL.md)
+  for name in "${core_files[@]}"; do
+    if [[ "$PRESERVE_AGENT_CORE" -eq 1 && -f "$WORKSPACE_DIR/$name" ]]; then
+      log "Skipping $name (preserve-agent-core is set)"
+    else
+      root_files+=("$name")
+    fi
+  done
 
   local name
   for name in "${root_files[@]}"; do
@@ -1078,7 +1093,13 @@ main() {
     printf '[dry-run] create symlinks in %s/bin and %s/.local/bin\n' "$WORKSPACE_DIR" "$HOME_DIR"
   fi
   if [[ "$DRY_RUN" -eq 0 ]]; then
+    local app_version="unknown"
+    if [[ -f "$REPO_DIR/pyproject.toml" ]]; then
+      app_version="$(python3 -c 'import re; match=re.search(r"version\s*=\s*\"([^\"]+)\"", open("'"$REPO_DIR"'/pyproject.toml").read()); print(match.group(1) if match else "unknown")' 2>/dev/null || echo "unknown")"
+    fi
+
     cat > "$INSTALL_ROOT/manifest.txt" <<EOF
+app_version=$app_version
 installed_at=$ts
 repo_dir=$REPO_DIR
 config_path=$CONFIG_PATH

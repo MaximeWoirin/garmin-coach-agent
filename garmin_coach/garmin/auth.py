@@ -9,6 +9,9 @@ from garminconnect import Garmin
 
 from garmin_coach.config import get_tokens_dir
 from garmin_coach.jsonio import error_response, success_response
+from garmin_coach.logging import get_logger
+
+logger = get_logger("garmin.auth")
 
 
 def authenticate(
@@ -32,31 +35,46 @@ def authenticate(
     tdir.mkdir(parents=True, exist_ok=True)
     warnings: list[str] = []
 
+    logger.info(
+        "Starting Garmin authentication",
+        extra={"tokens_dir": str(tdir), "force_login": force_login},
+    )
+
     # Si tokens existants et pas de force_login, essayer de réutiliser
     if not force_login and tdir.exists() and any(tdir.iterdir()):
+        logger.debug("Existing tokens found, attempting to reuse them")
         try:
             client = Garmin()
             client.login(tokenstore=str(tdir))
             client.garth.dump(str(tdir))
+            logger.info("Successfully authenticated using existing tokens")
             return success_response(
                 {"tokens_path": str(tdir)},
                 warnings=["Reused existing tokens."],
             )
         except Exception:
+            logger.warning(
+                "Failed to reuse existing tokens, will proceed with full login",
+                exc_info=True,
+            )
             warnings.append("Existing tokens invalid, performing full login.")
 
     # Login complet
     if not email or not password:
+        logger.error("Authentication failed: email or password missing for initial login")
         return error_response(
             ["Email and password required for initial login."],
             warnings=warnings,
         )
 
+    logger.info("Performing full login with email", extra={"email": email})
     try:
         client = Garmin(email=email, password=password)
         client.login(tokenstore=str(tdir))
         client.garth.dump(str(tdir))
+        logger.info("Authentication successful, tokens stored")
     except Exception as exc:
+        logger.error("Garmin authentication failed", exc_info=True)
         return error_response(
             [f"Authentication failed: {exc}"],
             warnings=warnings,
