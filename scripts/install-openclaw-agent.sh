@@ -244,7 +244,6 @@ sync_app_snapshot() {
   mkdir -p "$app_dir"
 
   cp -a "$REPO_DIR/garmin_coach" "$app_dir/"
-  cp -a "$REPO_DIR/migrations" "$app_dir/"
   cp -a "$REPO_DIR/pyproject.toml" "$app_dir/"
   cp -a "$REPO_DIR/README.md" "$app_dir/"
   cp -a "$REPO_DIR/SPEC.md" "$app_dir/"
@@ -1110,6 +1109,27 @@ data_dir=$data_dir
 managed_python=$managed_python
 managed_venv=$INSTALL_ROOT/.venv/bin/python
 EOF
+  fi
+
+  if [[ "$DRY_RUN" -eq 0 && -x "$INSTALL_ROOT/.venv/bin/python" ]]; then
+    log "Running database migrations..."
+    GARMIN_COACH_DB="$data_dir/garmin_coach.db" "$INSTALL_ROOT/.venv/bin/python" - <<'EOF'
+import sys
+try:
+    from garmin_coach.db import run_migrations, get_connection
+    conn = get_connection()
+    applied = run_migrations(conn)
+    if applied:
+        print(f"Migrations applied successfully: {', '.join(applied)}")
+    else:
+        print("Database schema is up to date.")
+    conn.close()
+except Exception as e:
+    print(f"Error during migrations: {e}", file=sys.stderr)
+    sys.exit(1)
+EOF
+  elif [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] run database migrations\n'
   fi
 
   log "Install done."

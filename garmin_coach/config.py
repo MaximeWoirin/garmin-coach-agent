@@ -29,4 +29,7 @@ def get_tokens_dir() -> Path:
 
 def get_migrations_dir() -> Path:
     """Retourne le répertoire des fichiers de migration SQL."""
-    return get_project_root() / "migrations"
+    env_path = os.environ.get("GARMIN_COACH_MIGRATIONS_DIR")
+    if env_path:
+        return Path(env_path)
+    return Path(__file__).resolve().parent / "migrations"
