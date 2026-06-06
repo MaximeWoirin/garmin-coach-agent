@@ -277,7 +277,7 @@ def _fetch_daily_metrics(client: Any, metric_date: date) -> dict[str, Any] | Non
     try:
         stats = client.get_stats(metric_date.isoformat())
         if stats:
-            return stats
+            return stats  # type: ignore[no-any-return]
     except Exception:
         pass
     return None

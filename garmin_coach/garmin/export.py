@@ -124,7 +124,7 @@ def export_plan(
             # Construire le payload Garmin
             try:
                 payload = _build_workout_payload(session)
-                event_id = _push_to_garmin(client, payload, session)  # type: ignore[arg-type]
+                event_id = _push_to_garmin(client, payload, session)
 
                 if event_id:
                     conn.execute(
@@ -190,7 +190,7 @@ def _build_workout_payload(session: dict[str, Any]) -> dict[str, Any]:
     """Construit le payload d'un workout pour l'export Garmin."""
     # Si un workout_payload_json est déjà défini, l'utiliser
     if session.get("workout_payload_json"):
-        return json.loads(session["workout_payload_json"])
+        return json.loads(session["workout_payload_json"])  # type: ignore[no-any-return]
 
     # Sinon, construire un payload minimal
     return {

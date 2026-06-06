@@ -35,7 +35,7 @@ def authenticate(
     tdir.mkdir(parents=True, exist_ok=True)
     warnings: list[str] = []
 
-    logger.info(
+    logger.debug(
         "Starting Garmin authentication",
         extra={"tokens_dir": str(tdir), "force_login": force_login},
     )
@@ -46,8 +46,7 @@ def authenticate(
         try:
             client = Garmin()
             client.login(tokenstore=str(tdir))
-            client.garth.dump(str(tdir))
-            logger.info("Successfully authenticated using existing tokens")
+            logger.debug("Successfully authenticated using existing tokens")
             return success_response(
                 {"tokens_path": str(tdir)},
                 warnings=["Reused existing tokens."],
@@ -61,18 +60,19 @@ def authenticate(
 
     # Login complet
     if not email or not password:
-        logger.error("Authentication failed: email or password missing for initial login")
+        logger.error(
+            "Authentication failed: email or password missing for initial login"
+        )
         return error_response(
             ["Email and password required for initial login."],
             warnings=warnings,
         )
 
-    logger.info("Performing full login with email", extra={"email": email})
+    logger.debug("Performing full login with email", extra={"email": email})
     try:
         client = Garmin(email=email, password=password)
         client.login(tokenstore=str(tdir))
-        client.garth.dump(str(tdir))
-        logger.info("Authentication successful, tokens stored")
+        logger.debug("Authentication successful, tokens stored")
     except Exception as exc:
         logger.error("Garmin authentication failed", exc_info=True)
         return error_response(
