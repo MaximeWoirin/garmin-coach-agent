@@ -1132,6 +1132,21 @@ EOF
     printf '[dry-run] run database migrations\n'
   fi
 
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    if command -v openclaw >/dev/null 2>&1; then
+      log "Creating weekly planning cron job..."
+      openclaw cron add "0 23 * * 0" "Applique le playbook playbooks/weekly_planning.md pour construire ma proposition de programme hebdomadaire." \
+        --name "Weekly Planning" \
+        --agent "$SELECTED_AGENT_ID" \
+        --session main \
+        --thinking high || log "Warning: Failed to create cron job"
+    else
+      log "openclaw CLI not found, skipping cron job creation"
+    fi
+  else
+    printf '[dry-run] create weekly planning cron job\n'
+  fi
+
   log "Install done."
   log "Managed bin dir: $INSTALL_ROOT/.venv/bin"
   log "Agent files:     $WORKSPACE_DIR"
