@@ -1044,7 +1044,7 @@ main() {
   sync_app_snapshot "$app_dir"
   create_venv_and_install "$managed_python" "$INSTALL_ROOT/.venv" "$app_dir"
 
-  local root_files=(AGENTS.md README.md TOOLS.md)
+  local root_files=(AGENTS.md TOOLS.md)
   if [[ "$WITH_BOOTSTRAP" -eq 1 ]]; then
     root_files+=(BOOTSTRAP.md)
   fi
