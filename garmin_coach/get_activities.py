@@ -15,7 +15,7 @@ from garmin_coach.jsonio import output_and_exit
 def main() -> None:
     parser = argparse.ArgumentParser(description="Lecture des activités")
     parser.add_argument("--start", required=True, help="Date ISO YYYY-MM-DD incluse")
-    parser.add_argument("--end", required=True, help="Date ISO YYYY-MM-DD exclue")
+    parser.add_argument("--end", required=True, help="Date ISO YYYY-MM-DD incluse")
     parser.add_argument("--limit", type=int, help="Nombre max de lignes")
     parser.add_argument("--activity-type", help="Filtre par type d'activité")
     args = parser.parse_args()

@@ -213,12 +213,13 @@ def _upsert_activity(conn: sqlite3.Connection, act: dict[str, Any]) -> tuple[int
 
     activity_type = act.get("activityType", {}).get("typeKey", "unknown")
     start_time = act.get("startTimeGMT", "")
+    local_start_time = act.get("startTimeLocal")
     duration = int(act.get("duration", 0))
 
     if existing:
         conn.execute(
             """UPDATE activities SET
-                activity_type=?, activity_name=?, start_time_utc=?, duration_s=?,
+                activity_type=?, activity_name=?, start_time_utc=?, local_start_time=?, duration_s=?,
                 distance_m=?, elevation_gain_m=?, calories_kcal=?,
                 avg_hr=?, max_hr=?, avg_speed_mps=?, max_speed_mps=?,
                 avg_pace_sec_per_km=?, raw_payload_json=?,
@@ -228,6 +229,7 @@ def _upsert_activity(conn: sqlite3.Connection, act: dict[str, Any]) -> tuple[int
                 activity_type,
                 act.get("activityName"),
                 start_time,
+                local_start_time,
                 duration,
                 act.get("distance"),
                 act.get("elevationGain"),
@@ -247,15 +249,16 @@ def _upsert_activity(conn: sqlite3.Connection, act: dict[str, Any]) -> tuple[int
         conn.execute(
             """INSERT INTO activities (
                 source, external_id, activity_type, activity_name,
-                start_time_utc, duration_s, distance_m, elevation_gain_m,
+                start_time_utc, local_start_time, duration_s, distance_m, elevation_gain_m,
                 calories_kcal, avg_hr, max_hr, avg_speed_mps, max_speed_mps,
                 avg_pace_sec_per_km, raw_payload_json
-               ) VALUES ('garmin', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               ) VALUES ('garmin', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 external_id,
                 activity_type,
                 act.get("activityName"),
                 start_time,
+                local_start_time,
                 duration,
                 act.get("distance"),
                 act.get("elevationGain"),

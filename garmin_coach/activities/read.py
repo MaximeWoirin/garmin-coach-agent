@@ -19,7 +19,7 @@ def get_activities(
 
     Args:
         start: Date ISO YYYY-MM-DD incluse.
-        end: Date ISO YYYY-MM-DD exclue.
+        end: Date ISO YYYY-MM-DD incluse.
         limit: Nombre max de lignes.
         activity_type: Filtre par type d'activité.
         db_path: Chemin de la base SQLite.
@@ -36,7 +36,8 @@ def get_activities(
                    training_effect_aerobic, training_effect_anaerobic,
                    perceived_effort
             FROM activities
-            WHERE date(start_time_utc) >= ? AND date(start_time_utc) < ?
+            WHERE date(coalesce(local_start_time, start_time_utc)) >= ?
+              AND date(coalesce(local_start_time, start_time_utc)) <= ?
         """
         params: list[Any] = [start, end]
 
