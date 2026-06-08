@@ -193,17 +193,31 @@ def _build_workout_payload(session: dict[str, Any]) -> dict[str, Any]:
         return json.loads(session["workout_payload_json"])  # type: ignore[no-any-return]
 
     # Sinon, construire un payload minimal
+    sport_type = _map_activity_type_to_sport(session["activity_type"])
     return {
         "workoutName": f"{session['activity_type']} - {session['planned_date']}",
-        "sportType": _map_activity_type_to_sport(session["activity_type"]),
+        "sportType": sport_type,
         "estimatedDurationInSecs": session["duration_min"] * 60,
-        "steps": [
+        "workoutSegments": [
             {
-                "type": "WorkoutStep",
-                "stepOrder": 1,
-                "intensity": session.get("intensity", "ACTIVE"),
-                "durationType": "TIME",
-                "durationValue": session["duration_min"] * 60 * 1000,
+                "segmentOrder": 1,
+                "sportType": sport_type,
+                "workoutSteps": [
+                    {
+                        "type": "ExecutableStepDTO",
+                        "stepOrder": 1,
+                        "stepType": {
+                            "stepTypeId": 3,
+                            "stepTypeKey": "interval",
+                        },
+                        "intensity": session.get("intensity", "ACTIVE").upper(),
+                        "endCondition": {
+                            "conditionTypeId": 2,
+                            "conditionTypeKey": "time",
+                        },
+                        "endConditionValue": session["duration_min"] * 60,
+                    }
+                ],
             }
         ],
     }
@@ -230,16 +244,13 @@ def _push_to_garmin(client: Any, payload: dict[str, Any], session: dict[str, Any
 
     Note: Utilise l'API de scheduling de Garmin pour associer le workout à une date.
     """
-    try:
-        # Créer le workout
-        response = client.add_workout(payload)
-        workout_id = response.get("workoutId") if isinstance(response, dict) else None
+    # Créer le workout
+    response = client.upload_workout(payload)
+    workout_id = response.get("workoutId") if isinstance(response, dict) else None
 
-        if workout_id:
-            # Scheduler le workout à la date prévue
-            client.schedule_workout(workout_id, session["planned_date"])
-            return str(workout_id)
-    except Exception:
-        # Fallback: essayer directement
-        pass
-    return None
+    if not workout_id:
+        raise ValueError("Garmin returned no workoutId in response.")
+
+    # Scheduler le workout à la date prévue
+    client.schedule_workout(workout_id, session["planned_date"])
+    return str(workout_id)

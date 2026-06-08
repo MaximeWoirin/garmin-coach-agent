@@ -15,7 +15,7 @@ def tmp_db(tmp_path: Path) -> Path:
     """Retourne le chemin d'une base SQLite temporaire avec migrations appliquées."""
     db_path = tmp_path / "test.db"
     conn = get_connection(db_path)
-    migrations_dir = Path(__file__).resolve().parent.parent / "migrations"
+    migrations_dir = Path(__file__).resolve().parent.parent / "garmin_coach" / "migrations"
     run_migrations(conn, migrations_dir)
     conn.close()
     return db_path

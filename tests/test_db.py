@@ -34,7 +34,7 @@ def test_get_connection_creates_parent_dirs(tmp_path: Path) -> None:
 def test_run_migrations(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     conn = get_connection(db_path)
-    migrations_dir = Path(__file__).resolve().parent.parent / "migrations"
+    migrations_dir = Path(__file__).resolve().parent.parent / "garmin_coach" / "migrations"
     applied = run_migrations(conn, migrations_dir)
     assert len(applied) >= 3
     assert "0001_init" in applied
@@ -44,7 +44,7 @@ def test_run_migrations(tmp_path: Path) -> None:
 def test_run_migrations_idempotent(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     conn = get_connection(db_path)
-    migrations_dir = Path(__file__).resolve().parent.parent / "migrations"
+    migrations_dir = Path(__file__).resolve().parent.parent / "garmin_coach" / "migrations"
     first = run_migrations(conn, migrations_dir)
     second = run_migrations(conn, migrations_dir)
     assert len(first) >= 3
