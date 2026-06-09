@@ -25,6 +25,8 @@ La publication suit le modèle de séance :
 - **séance simple** → export texte via `description` / `notes`
 - **séance enrichie** → export structuré si Garmin le permet
 
+Le choix du `sportType` Garmin doit suivre le mapping validé dans [`garmin-workout-sport-mapping.md`](garmin-workout-sport-mapping.md), pas les ids d’`activity-service`.
+
 
 ## États de référence
 

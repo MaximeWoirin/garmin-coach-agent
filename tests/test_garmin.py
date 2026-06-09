@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from garmin_coach.db import get_connection
 from garmin_coach.garmin.auth import authenticate
 from garmin_coach.garmin.client import get_client
@@ -15,9 +17,6 @@ from garmin_coach.garmin.export import (
     export_plan,
 )
 from garmin_coach.garmin.sync import sync
-
-import pytest
-
 
 # --- Tests auth ---
 
@@ -127,12 +126,34 @@ def test_build_workout_payload_from_json() -> None:
     assert result == custom_payload
 
 
-def test_map_activity_type_to_sport() -> None:
-    assert _map_activity_type_to_sport("running")["sportTypeKey"] == "running"
-    assert _map_activity_type_to_sport("cycling")["sportTypeKey"] == "cycling"
-    assert _map_activity_type_to_sport("swimming")["sportTypeKey"] == "swimming"
-    assert _map_activity_type_to_sport("strength")["sportTypeKey"] == "strength_training"
-    assert _map_activity_type_to_sport("unknown_type")["sportTypeKey"] == "running"  # default
+@pytest.mark.parametrize(
+    ("activity_type", "sport_type_id", "sport_type_key"),
+    [
+        ("running", 1, "running"),
+        ("trail", 1, "running"),
+        ("cycling", 2, "cycling"),
+        ("swimming", 4, "swimming"),
+        ("strength", 5, "strength_training"),
+        ("cardio", 6, "cardio_training"),
+        ("yoga", 7, "yoga"),
+        ("pilates", 8, "pilates"),
+        ("hiit", 9, "hiit"),
+        ("mobility", 11, "mobility"),
+        ("walking", 12, "walking"),
+        ("hiking", 12, "walking"),
+        ("rucking", 13, "rucking"),
+        ("climbing", 3, "other"),
+        ("unknown_type", 3, "other"),
+    ],
+)
+def test_map_activity_type_to_sport(
+    activity_type: str,
+    sport_type_id: int,
+    sport_type_key: str,
+) -> None:
+    sport = _map_activity_type_to_sport(activity_type)
+    assert sport["sportTypeId"] == sport_type_id
+    assert sport["sportTypeKey"] == sport_type_key
 
 
 def test_export_plan_not_found(seeded_db: Path) -> None:

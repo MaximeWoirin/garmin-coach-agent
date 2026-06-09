@@ -31,4 +31,5 @@ La V0 repose sur cinq blocs :
 - [`scripts.md`](scripts.md)
 - [`agent.md`](agent.md)
 - [`export-workflow.md`](export-workflow.md) — validation locale et publication Garmin
+- [`garmin-workout-sport-mapping.md`](garmin-workout-sport-mapping.md) — mapping réel entre sports locaux et `workout-service`
 - [`../../agent/README.md`](../../agent/README.md) — dossier de travail de l’agent

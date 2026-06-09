@@ -173,14 +173,22 @@ def _resolve_date_range(
     return start_date, end_date
 
 
-def _find_plan(conn: sqlite3.Connection, plan_id: int | None, week_start: str | None) -> dict[str, Any] | None:
+def _find_plan(
+    conn: sqlite3.Connection,
+    plan_id: int | None,
+    week_start: str | None,
+) -> dict[str, Any] | None:
     """Trouve le plan par id ou par semaine."""
     if plan_id:
         return fetchone_dict(conn, "SELECT * FROM training_plans WHERE id=?", (plan_id,))
     if week_start:
         return fetchone_dict(
             conn,
-            "SELECT * FROM training_plans WHERE week_start=? AND status IN ('active', 'draft') ORDER BY id DESC LIMIT 1",
+            (
+                "SELECT * FROM training_plans "
+                "WHERE week_start=? AND status IN ('active', 'draft') "
+                "ORDER BY id DESC LIMIT 1"
+            ),
             (week_start,),
         )
     return None
@@ -224,19 +232,67 @@ def _build_workout_payload(session: dict[str, Any]) -> dict[str, Any]:
 
 
 def _map_activity_type_to_sport(activity_type: str) -> dict[str, Any]:
-    """Mappe un type d'activité vers le format Garmin sportType."""
+    """Mappe un type d'activité local vers le `sportType` du workout-service Garmin.
+
+    Important:
+    - ce mapping n'utilise pas les ids de `activity-service/activityTypes`
+    - il utilise les ids réellement observés via création de workouts Garmin Connect
+    - plusieurs sports locaux retombent volontairement sur un fallback Garmin plus pauvre
+      quand le workout-service n'expose pas de type dédié exploitable
+
+    Référence: `docs/spec/garmin-workout-sport-mapping.md`.
+    """
+    normalized = activity_type.strip().lower().replace("-", " ").replace("_", " ")
+
+    running = {"sportTypeId": 1, "sportTypeKey": "running"}
+    cycling = {"sportTypeId": 2, "sportTypeKey": "cycling"}
+    other = {"sportTypeId": 3, "sportTypeKey": "other"}
+    swimming = {"sportTypeId": 4, "sportTypeKey": "swimming"}
+    strength = {"sportTypeId": 5, "sportTypeKey": "strength_training"}
+    cardio = {"sportTypeId": 6, "sportTypeKey": "cardio_training"}
+    yoga = {"sportTypeId": 7, "sportTypeKey": "yoga"}
+    pilates = {"sportTypeId": 8, "sportTypeKey": "pilates"}
+    hiit = {"sportTypeId": 9, "sportTypeKey": "hiit"}
+    mobility = {"sportTypeId": 11, "sportTypeKey": "mobility"}
+    walking = {"sportTypeId": 12, "sportTypeKey": "walking"}
+    rucking = {"sportTypeId": 13, "sportTypeKey": "rucking"}
+
     mapping: dict[str, dict[str, Any]] = {
-        "run": {"sportTypeId": 1, "sportTypeKey": "running"},
-        "running": {"sportTypeId": 1, "sportTypeKey": "running"},
-        "cycling": {"sportTypeId": 2, "sportTypeKey": "cycling"},
-        "bike": {"sportTypeId": 2, "sportTypeKey": "cycling"},
-        "swimming": {"sportTypeId": 5, "sportTypeKey": "swimming"},
-        "swim": {"sportTypeId": 5, "sportTypeKey": "swimming"},
-        "strength": {"sportTypeId": 4, "sportTypeKey": "strength_training"},
-        "yoga": {"sportTypeId": 28, "sportTypeKey": "yoga"},
-        "hiking": {"sportTypeId": 3, "sportTypeKey": "hiking"},
+        "run": running,
+        "running": running,
+        "trail": running,
+        "trail running": running,
+        "treadmill": running,
+        "virtual run": running,
+        "cycling": cycling,
+        "bike": cycling,
+        "biking": cycling,
+        "indoor cycling": cycling,
+        "spinning": cycling,
+        "swimming": swimming,
+        "swim": swimming,
+        "pool swim": swimming,
+        "lap swimming": swimming,
+        "open water swim": swimming,
+        "strength": strength,
+        "strength training": strength,
+        "cardio": cardio,
+        "cardio workout": cardio,
+        "fitness": cardio,
+        "yoga": yoga,
+        "pilates": pilates,
+        "hiit": hiit,
+        "walking": walking,
+        "walk": walking,
+        "hiking": walking,
+        "hike": walking,
+        "rucking": rucking,
+        "mobility": mobility,
+        "climbing": other,
+        "rock climbing": other,
+        "indoor climbing": other,
     }
-    return mapping.get(activity_type.lower(), {"sportTypeId": 1, "sportTypeKey": "running"})
+    return mapping.get(normalized, other)
 
 
 def _push_to_garmin(client: Any, payload: dict[str, Any], session: dict[str, Any]) -> str | None:
