@@ -20,6 +20,12 @@ On sépare trois couches :
    - seules certaines séances sont effectivement poussées vers Garmin
    - la publication est pilotée **au niveau session** (pas au niveau plan)
 
+La publication suit le modèle de séance :
+
+- **séance simple** → export texte via `description` / `notes`
+- **séance enrichie** → export structuré si Garmin le permet
+
+
 ## États de référence
 
 ### Plan (cycle de vie local uniquement)

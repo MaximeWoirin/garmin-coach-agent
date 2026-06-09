@@ -27,6 +27,7 @@ La V0 repose sur cinq blocs :
 - [`architecture.md`](architecture.md)
 - [`code.md`](code.md)
 - [`database.md`](database.md)
+- [`session-model.md`](session-model.md)
 - [`scripts.md`](scripts.md)
 - [`agent.md`](agent.md)
 - [`export-workflow.md`](export-workflow.md) — validation locale et publication Garmin
