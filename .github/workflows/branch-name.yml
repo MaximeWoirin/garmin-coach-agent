@@ -1,0 +1,30 @@
+name: Branch name
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR source branch name
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+
+          pattern='^(feat|fix|docs|refactor|chore|spike)/[a-z0-9][a-z0-9._-]*$'
+
+          echo "Checking branch: $BRANCH_NAME"
+
+          if [[ ! "$BRANCH_NAME" =~ $pattern ]]; then
+            echo "Invalid branch name: $BRANCH_NAME"
+            echo "Expected format: <type>/<slug>"
+            echo "Allowed types: feat, fix, docs, refactor, chore, spike"
+            echo "Example: feat/persisted-coach-config"
+            exit 1
+          fi
