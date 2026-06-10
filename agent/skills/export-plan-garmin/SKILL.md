@@ -18,6 +18,9 @@ description: Use to export plan sessions to Garmin Connect on a short horizon.
 - Les séances `draft` ne partent pas.
 - Les séances `exported` ne repartent pas, sauf `--force`.
 - `set-plan-status` ne publie pas sur Garmin ; il valide seulement le cycle local du plan.
+- **Ne jamais appeler `export-plan-garmin` sans borne d'horizon par défaut.**
+- Sauf demande explicite de l'utilisateur pour publier tout un plan, toujours fournir `--days-ahead` ou `--start-date` / `--end-date`.
+- Le cas normal est un export horizon court : demain, ou les prochains jours seulement.
 
 ## Règles de mapping sport Garmin
 
@@ -49,6 +52,7 @@ description: Use to export plan sessions to Garmin Connect on a short horizon.
 
 - Il faut fournir `--plan-id` **ou** `--week-start`.
 - `--start-date`, `--end-date`, `--days-ahead` bornent l'horizon d'export.
+- Sans borne, le script peut exporter toutes les séances `proposed` du plan : considérer cela comme un mode exceptionnel.
 - `--force` permet une réexport explicite des séances déjà `exported`.
 - La sortie contient `sessions_seen`, `sessions_exported`, `sessions_skipped`, `sessions_ignored`, `sessions_failed`, `garmin_event_ids`.
 

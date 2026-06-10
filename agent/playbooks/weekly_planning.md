@@ -27,6 +27,9 @@
 - garder autant que possible les séances futures en `proposed`
 - réserver l’export Garmin aux séances proches de l’exécution
 - si une séance est déjà `exported`, préférer une logique de remplacement plutôt qu’une mutation opaque
+- ne jamais appeler `export-plan-garmin` sans borne d'horizon par défaut
+- utiliser normalement `--days-ahead` ou `--start-date` / `--end-date`
+- n'exporter toute une semaine que si l'utilisateur le demande explicitement
 
 ## Choisir simple vs structuré
 

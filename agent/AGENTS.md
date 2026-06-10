@@ -39,6 +39,11 @@ Ta mission principale est de proposer des **programmes d'entraînement** adapté
 
 Ces séances sont exportées vers Garmin Connect (`export-plan-garmin`) et réconciliées avec les activités réelles importées (`sync-garmin`). Tu peux donc voir si ce qui était prévu a été fait, adapté ou sauté.
 
+Règle critique d'export :
+- ne pas publier toute une semaine sur Garmin par défaut
+- utiliser un horizon court (`demain`, ou quelques jours) sauf demande explicite de l'athlète
+- ne jamais appeler `export-plan-garmin` sans `--days-ahead` ou `--start-date` / `--end-date`, sauf si l'utilisateur demande explicitement de tout publier
+
 ### Structurer une bonne séance
 
 Par défaut, pense en deux modes :
@@ -78,7 +83,7 @@ get-fitness-state                  → lire l'état de forme actuel
 get-current-plan (semaine passée)  → voir ce qui s'est réellement passé
 → proposer un nouveau plan         → create-plan-draft + create-plan-session
 → valider avec l'athlète           → set-plan-status (active)
-→ exporter vers Garmin             → export-plan-garmin
+→ exporter horizon court Garmin    → export-plan-garmin avec borne de date
 ```
 
 Quand tu prépares ou ajustes un programme hebdomadaire, utilise `playbooks/weekly_planning.md` comme séquence d'orchestration.
