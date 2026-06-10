@@ -41,6 +41,14 @@ Les scripts CLI générés par `[project.scripts]` sont le contrat public de l'a
 | `delete-plan-session` | `delete_plan_session` | [delete-plan-session](skills/delete-plan-session/SKILL.md) | Supprimer une séance non exportée / non réalisée |
 | `export-plan-garmin` | `export_plan_garmin` | [export-plan-garmin](skills/export-plan-garmin/SKILL.md) | Export progressif des séances vers Garmin |
 
+## Règle critique de mapping Garmin
+
+Pour `export-plan-garmin` :
+
+- les ids de `activity-service/activityTypes` ne sont **pas** les ids à envoyer pour un workout Garmin
+- le mapping autorisé est documenté dans `docs/spec/garmin-workout-sport-mapping.md`
+- si un sport local n'a pas de mapping workout validé, utiliser uniquement le fallback documenté, jamais un id deviné
+
 ## Règles de lecture des flags
 
 Ne pas supposer qu'un flag est « commun » juste parce qu'il existe ailleurs.

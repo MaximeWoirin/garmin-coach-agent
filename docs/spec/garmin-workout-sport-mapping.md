@@ -58,6 +58,21 @@ Exemples observés :
 | `{"sportTypeId": 26, "sportTypeKey": "swimming"}` | normalisé en type nul / non reconnu |
 | `{"sportTypeId": 139, "sportTypeKey": "rock_climbing"}` | normalisé en type nul / non reconnu |
 
+## Contrat agent + code
+
+Ce document sert de **source de vérité** pour trois couches :
+
+- la doc produit
+- les skills de l’agent
+- le mapping déterministe dans le code Python
+
+Règles opératoires :
+
+- l’agent ne doit jamais inventer un `sportTypeId`
+- l’agent ne doit jamais recycler un id trouvé dans `activity-service/activityTypes`
+- un sport local non documenté ici doit retomber sur un fallback produit explicite
+- tout nouveau mapping Garmin doit être validé par observation réelle puis ajouté ici avant d’être utilisé en prod
+
 ## Conséquences produit
 
 ### À utiliser directement
@@ -73,6 +88,20 @@ Exemples observés :
 - `mobility` → `11 / mobility`
 - `walking` → `12 / walking`
 - `rucking` → `13 / rucking`
+
+### Alias locaux actuellement supportés par le code
+
+Le code normalise quelques variantes textuelles vers le mapping ci-dessus.
+
+- `run`, `running`, `trail`, `trail running`, `treadmill`, `virtual run` -> `running`
+- `cycling`, `bike`, `biking`, `indoor cycling`, `spinning` -> `cycling`
+- `swimming`, `swim`, `pool swim`, `lap swimming`, `open water swim` -> `swimming`
+- `strength`, `strength training` -> `strength_training`
+- `cardio`, `cardio workout`, `fitness` -> `cardio_training`
+- `walk`, `walking`, `hike`, `hiking` -> `walking`
+- `climbing`, `rock climbing`, `indoor climbing` -> fallback `other`
+
+Si l’agent fabrique un autre alias que ceux-ci, ce n’est plus un usage sûr du mapping.
 
 ### Sports locaux sans type workout Garmin fiable
 
@@ -110,5 +139,7 @@ mais pas pour la création de **workouts Garmin**.
 Quand un sport local n’a pas de mapping workout Garmin observé et stable :
 
 - ne pas deviner à partir d’`activity-service/activityTypes`
+- ne pas supposer qu’un nom proche implique le même `sportTypeId`
 - préférer un fallback explicite (`other`, `walking`, etc.)
 - documenter le choix dans ce fichier
+- refléter ce choix dans le skill agent concerné et dans les tests

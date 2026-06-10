@@ -27,6 +27,11 @@ La publication suit le modèle de séance :
 
 Le choix du `sportType` Garmin doit suivre le mapping validé dans [`garmin-workout-sport-mapping.md`](garmin-workout-sport-mapping.md), pas les ids d’`activity-service`.
 
+Côté agent, c’est une règle explicite :
+- ne jamais inventer un `sportTypeId`
+- ne jamais réutiliser un id d’activité Garmin pour un workout
+- si le sport local n’est pas documenté, retomber sur le fallback produit documenté
+
 
 ## États de référence
 

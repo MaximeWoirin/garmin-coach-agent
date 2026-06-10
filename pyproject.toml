@@ -1,6 +1,6 @@
 [project]
 name = "garmin-coach-agent"
-version = "0.2.3"
+version = "0.2.4"
 description = "Assistant local qui transforme des données Garmin en recommandations d'entraînement"
 requires-python = ">=3.13"
 dependencies = [

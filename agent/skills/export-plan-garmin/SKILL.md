@@ -19,6 +19,20 @@ description: Use to export plan sessions to Garmin Connect on a short horizon.
 - Les séances `exported` ne repartent pas, sauf `--force`.
 - `set-plan-status` ne publie pas sur Garmin ; il valide seulement le cycle local du plan.
 
+## Règles de mapping sport Garmin
+
+- Pour un **workout Garmin**, utiliser uniquement le mapping validé dans `docs/spec/garmin-workout-sport-mapping.md`.
+- Ne jamais réutiliser directement les ids de `activity-service/activityTypes` pour remplir `sportTypeId`.
+- Ne pas déduire un `sportTypeId` Garmin « plausible » depuis un nom de sport non documenté.
+- Si le sport local n'a pas de type workout Garmin validé, utiliser seulement le fallback produit documenté.
+- Fallbacks actuellement validés dans ce repo :
+  - `hiking` -> `walking`
+  - `climbing` / `rock_climbing` / `indoor_climbing` -> `other`
+- Exemples sûrs :
+  - `strength` -> `5 / strength_training`
+  - `walking` -> `12 / walking`
+  - `rucking` -> `13 / rucking`
+
 ## Commande
 
 ```bash
