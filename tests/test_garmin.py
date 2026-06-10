@@ -126,6 +126,112 @@ def test_build_workout_payload_from_json() -> None:
     assert result == custom_payload
 
 
+def test_build_workout_payload_from_session_payload_json() -> None:
+    session_payload = {
+        "schemaVersion": 1,
+        "sport": "running",
+        "format": "structured",
+        "title": "6 x 400m",
+        "description": "Séance piste",
+        "items": [
+            {
+                "kind": "step",
+                "stepType": "warmup",
+                "endCondition": {"type": "time", "valueSec": 600},
+            },
+            {
+                "kind": "repeat",
+                "repeatCount": 6,
+                "items": [
+                    {
+                        "kind": "step",
+                        "stepType": "interval",
+                        "endCondition": {"type": "distance", "valueMeters": 400},
+                        "target": {"type": "pace", "valueSecPerKm": 240},
+                        "comment": "400m vite",
+                    },
+                    {
+                        "kind": "step",
+                        "stepType": "recovery",
+                        "endCondition": {"type": "time", "valueSec": 90},
+                        "target": {"type": "heart_rate_zone", "zone": 2},
+                    },
+                ],
+            },
+            {
+                "kind": "step",
+                "stepType": "cooldown",
+                "endCondition": {"type": "lap_button"},
+            },
+        ],
+    }
+    session = {
+        "activity_type": "running",
+        "planned_date": "2026-06-03",
+        "duration_min": 45,
+        "notes": "Rester propre",
+        "session_payload_json": json.dumps(session_payload),
+        "workout_payload_json": None,
+    }
+
+    payload = _build_workout_payload(session)
+
+    assert payload["workoutName"] == "6 x 400m"
+    assert payload["sportType"]["sportTypeKey"] == "running"
+    steps = payload["workoutSegments"][0]["workoutSteps"]
+    assert steps[0]["stepType"]["stepTypeKey"] == "warmup"
+    assert steps[1]["type"] == "RepeatGroupDTO"
+    assert steps[1]["numberOfIterations"] == 6
+    assert steps[1]["workoutSteps"][0]["targetType"]["workoutTargetTypeKey"] == "pace.zone"
+    assert steps[1]["workoutSteps"][1]["zoneNumber"] == 2
+    assert steps[2]["endCondition"]["conditionTypeKey"] == "lap.button"
+
+
+@patch("garmin_coach.garmin.export.get_client")
+def test_export_plan_persists_generated_workout_payload(mock_get_client: MagicMock, seeded_db: Path) -> None:
+    mock_client = MagicMock()
+    mock_client.upload_workout.return_value = {"workoutId": 4242}
+    mock_client.schedule_workout.return_value = {"ok": True}
+    mock_get_client.return_value = mock_client
+
+    session_payload = {
+        "schemaVersion": 1,
+        "sport": "running",
+        "format": "structured",
+        "title": "Tempo",
+        "items": [
+            {
+                "kind": "step",
+                "stepType": "interval",
+                "endCondition": {"type": "time", "valueSec": 1200},
+                "target": {"type": "heart_rate_zone", "zone": 4},
+            }
+        ],
+    }
+
+    conn = get_connection(seeded_db)
+    conn.execute(
+        "UPDATE plan_sessions SET session_payload_json=? WHERE id=1",
+        (json.dumps(session_payload),),
+    )
+    conn.commit()
+    conn.close()
+
+    result = export_plan(plan_id=1, db_path=seeded_db)
+    assert result["status"] == "success"
+
+    conn = get_connection(seeded_db)
+    row = conn.execute(
+        "SELECT status, garmin_event_id, workout_payload_json FROM plan_sessions WHERE id=1",
+    ).fetchone()
+    conn.close()
+
+    assert row is not None
+    assert row[0] == "exported"
+    assert row[1] == "4242"
+    assert json.loads(row[2])["workoutName"] == "Tempo"
+
+
 @pytest.mark.parametrize(
     ("activity_type", "sport_type_id", "sport_type_key"),
     [

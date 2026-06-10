@@ -272,6 +272,58 @@ def test_create_plan_session_dry_run(seeded_db: Path) -> None:
     assert result["dry_run"] is True
 
 
+def test_create_plan_session_with_session_payload_json(seeded_db: Path) -> None:
+    from garmin_coach.db import get_connection
+
+    session_payload = {
+        "schemaVersion": 1,
+        "sport": "running",
+        "format": "structured",
+        "title": "Tempo Run",
+        "items": [
+            {
+                "kind": "step",
+                "stepType": "interval",
+                "endCondition": {"type": "time", "valueSec": 1200},
+                "target": {"type": "heart_rate_zone", "zone": 4},
+            }
+        ],
+    }
+
+    result = create_plan_session(
+        plan_id=1,
+        planned_date="2026-06-04",
+        activity_type="running",
+        duration_min=30,
+        session_payload_json=json.dumps(session_payload),
+        db_path=seeded_db,
+    )
+    assert result["status"] == "success"
+
+    conn = get_connection(seeded_db)
+    row = conn.execute(
+        "SELECT session_payload_json FROM plan_sessions WHERE id=?",
+        (result["session_id"],),
+    ).fetchone()
+    conn.close()
+
+    assert row is not None
+    assert json.loads(row[0])["title"] == "Tempo Run"
+
+
+def test_create_plan_session_invalid_session_payload_json(seeded_db: Path) -> None:
+    result = create_plan_session(
+        plan_id=1,
+        planned_date="2026-06-04",
+        activity_type="running",
+        duration_min=30,
+        session_payload_json="{bad-json",
+        db_path=seeded_db,
+    )
+    assert result["status"] == "failed"
+    assert "Invalid session_payload_json format" in result["errors"][0]
+
+
 def test_delete_plan_session_success(seeded_db: Path) -> None:
     result = delete_plan_session(plan_id=1, session_id=2, db_path=seeded_db)
     assert result["status"] == "success"

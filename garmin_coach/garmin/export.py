@@ -129,9 +129,9 @@ def export_plan(
                 if event_id:
                     conn.execute(
                         """UPDATE plan_sessions
-                           SET garmin_event_id=?, status=?, updated_at=CURRENT_TIMESTAMP
+                           SET garmin_event_id=?, status=?, workout_payload_json=?, updated_at=CURRENT_TIMESTAMP
                            WHERE id=?""",
-                        (event_id, SessionStatus.EXPORTED, session["id"]),
+                        (event_id, SessionStatus.EXPORTED, json.dumps(payload), session["id"]),
                     )
                     conn.commit()
                     garmin_event_ids.append(event_id)
@@ -200,6 +200,11 @@ def _build_workout_payload(session: dict[str, Any]) -> dict[str, Any]:
     if session.get("workout_payload_json"):
         return json.loads(session["workout_payload_json"])  # type: ignore[no-any-return]
 
+    if session.get("session_payload_json"):
+        session_payload = json.loads(session["session_payload_json"])
+        if isinstance(session_payload, dict):
+            return _build_workout_payload_from_session_payload(session, session_payload)
+
     # Sinon, construire un payload minimal
     sport_type = _map_activity_type_to_sport(session["activity_type"])
     return {
@@ -229,6 +234,281 @@ def _build_workout_payload(session: dict[str, Any]) -> dict[str, Any]:
             }
         ],
     }
+
+
+def _build_workout_payload_from_session_payload(
+    session: dict[str, Any],
+    session_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Projette le JSON canonique d'une séance vers un payload workout Garmin."""
+    sport = str(session_payload.get("sport") or session.get("activity_type") or "running")
+    format_kind = session_payload.get("format")
+
+    if sport not in {"running", "trail", "treadmill"} or format_kind != "structured":
+        return _build_simple_payload_from_session_payload(session, session_payload)
+
+    sport_type = _map_activity_type_to_sport(sport)
+    items = session_payload.get("items") or []
+    if not isinstance(items, list) or not items:
+        raise ValueError("session_payload_json structured workout must contain a non-empty items array.")
+
+    workout_name = (
+        session_payload.get("title")
+        or session_payload.get("description")
+        or f"{session['activity_type']} - {session['planned_date']}"
+    )
+    description = _join_non_empty(
+        [session_payload.get("description"), session_payload.get("notes"), session.get("notes")]
+    )
+
+    payload = {
+        "workoutName": workout_name,
+        "sportType": sport_type,
+        "estimatedDurationInSecs": _estimate_duration_seconds(session_payload, session),
+        "workoutSegments": [
+            {
+                "segmentOrder": 1,
+                "sportType": sport_type,
+                "workoutSteps": _build_workout_steps(items),
+            }
+        ],
+    }
+    if description:
+        payload["description"] = description
+    return payload
+
+
+def _build_simple_payload_from_session_payload(
+    session: dict[str, Any],
+    session_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Construit un payload minimal en conservant le texte utile du JSON canonique."""
+    sport_type = _map_activity_type_to_sport(session["activity_type"])
+    workout_name = (
+        session_payload.get("title")
+        or session_payload.get("description")
+        or f"{session['activity_type']} - {session['planned_date']}"
+    )
+    description = _join_non_empty(
+        [session_payload.get("description"), session_payload.get("notes"), session.get("notes")]
+    )
+
+    payload = {
+        "workoutName": workout_name,
+        "sportType": sport_type,
+        "estimatedDurationInSecs": _estimate_duration_seconds(session_payload, session),
+        "workoutSegments": [
+            {
+                "segmentOrder": 1,
+                "sportType": sport_type,
+                "workoutSteps": [
+                    {
+                        "type": "ExecutableStepDTO",
+                        "stepOrder": 1,
+                        "stepType": _step_type_meta("interval"),
+                        "description": description,
+                        "endCondition": _end_condition_meta("time"),
+                        "endConditionValue": int(session["duration_min"]) * 60,
+                        "targetType": _no_target_meta(),
+                    }
+                ],
+            }
+        ],
+    }
+    if description:
+        payload["description"] = description
+    return payload
+
+
+def _build_workout_steps(items: list[Any]) -> list[dict[str, Any]]:
+    """Construit récursivement les étapes Garmin d'un workout."""
+    result: list[dict[str, Any]] = []
+    for order, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ValueError("Each session payload item must be an object.")
+
+        kind = item.get("kind")
+        if kind == "step":
+            result.append(_build_step(item, order))
+        elif kind == "repeat":
+            result.append(_build_repeat(item, order))
+        else:
+            raise ValueError(f"Unsupported session payload item kind: {kind!r}")
+    return result
+
+
+def _build_step(item: dict[str, Any], step_order: int) -> dict[str, Any]:
+    """Construit une étape Garmin simple."""
+    end_condition = item.get("endCondition")
+    if not isinstance(end_condition, dict):
+        raise ValueError("Structured step requires an endCondition object.")
+
+    payload: dict[str, Any] = {
+        "type": "ExecutableStepDTO",
+        "stepOrder": step_order,
+        "stepType": _step_type_meta(str(item.get("stepType") or "interval")),
+        "endCondition": _end_condition_meta(str(end_condition.get("type") or "time")),
+        "targetType": _target_meta(item.get("target")),
+    }
+
+    end_condition_value = _end_condition_value(end_condition)
+    if end_condition_value is not None:
+        payload["endConditionValue"] = end_condition_value
+
+    payload.update(_target_extra_fields(item.get("target")))
+
+    if item.get("comment"):
+        payload["description"] = item["comment"]
+
+    return payload
+
+
+def _build_repeat(item: dict[str, Any], step_order: int) -> dict[str, Any]:
+    """Construit un RepeatGroupDTO Garmin."""
+    repeat_count = item.get("repeatCount")
+    if not isinstance(repeat_count, int) or repeat_count <= 0:
+        raise ValueError("Repeat item requires a positive integer repeatCount.")
+
+    children = item.get("items")
+    if not isinstance(children, list) or not children:
+        raise ValueError("Repeat item requires a non-empty items array.")
+
+    return {
+        "type": "RepeatGroupDTO",
+        "stepOrder": step_order,
+        "stepType": _step_type_meta("repeat"),
+        "numberOfIterations": repeat_count,
+        "endCondition": _end_condition_meta("iterations"),
+        "endConditionValue": float(repeat_count),
+        "workoutSteps": _build_workout_steps(children),
+    }
+
+
+def _step_type_meta(step_type: str) -> dict[str, Any]:
+    """Retourne les métadonnées Garmin d'un type d'étape."""
+    normalized = step_type.strip().lower().replace("-", "_").replace(" ", "_")
+    mapping: dict[str, tuple[int, str]] = {
+        "warmup": (1, "warmup"),
+        "cooldown": (2, "cooldown"),
+        "interval": (3, "interval"),
+        "run": (3, "interval"),
+        "recovery": (4, "recovery"),
+        "rest": (5, "rest"),
+        "repeat": (6, "repeat"),
+    }
+    step_type_id, step_type_key = mapping.get(normalized, (3, "interval"))
+    return {"stepTypeId": step_type_id, "stepTypeKey": step_type_key}
+
+
+def _end_condition_meta(end_condition_type: str) -> dict[str, Any]:
+    """Retourne les métadonnées Garmin d'une condition de fin."""
+    normalized = end_condition_type.strip().lower().replace("-", "_").replace(" ", "_")
+    mapping: dict[str, tuple[int, str]] = {
+        "lap_button": (1, "lap.button"),
+        "time": (2, "time"),
+        "distance": (3, "distance"),
+        "iterations": (7, "iterations"),
+    }
+    if normalized not in mapping:
+        raise ValueError(f"Unsupported end condition type: {end_condition_type!r}")
+    condition_id, condition_key = mapping[normalized]
+    return {"conditionTypeId": condition_id, "conditionTypeKey": condition_key}
+
+
+def _end_condition_value(end_condition: dict[str, Any]) -> float | None:
+    """Retourne la valeur numérique d'une condition de fin, si applicable."""
+    condition_type = str(end_condition.get("type") or "time").strip().lower().replace("-", "_")
+    if condition_type == "time":
+        value = end_condition.get("valueSec")
+    elif condition_type == "distance":
+        value = end_condition.get("valueMeters")
+    elif condition_type == "lap_button":
+        return None
+    else:
+        raise ValueError(f"Unsupported end condition type: {condition_type!r}")
+
+    if value is None:
+        raise ValueError(f"End condition {condition_type!r} requires a numeric value.")
+    return float(value)
+
+
+def _target_meta(target: Any) -> dict[str, Any]:
+    """Retourne les métadonnées Garmin de target."""
+    if not isinstance(target, dict):
+        return _no_target_meta()
+
+    target_type = str(target.get("type") or "").strip().lower().replace("-", "_")
+    if target_type == "heart_rate_zone":
+        return {"workoutTargetTypeId": 4, "workoutTargetTypeKey": "heart.rate.zone"}
+    if target_type == "pace":
+        return {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone"}
+    raise ValueError(f"Unsupported target type: {target.get('type')!r}")
+
+
+def _target_extra_fields(target: Any) -> dict[str, Any]:
+    """Construit les champs Garmin additionnels liés à la target."""
+    if not isinstance(target, dict):
+        return {}
+
+    target_type = str(target.get("type") or "").strip().lower().replace("-", "_")
+    if target_type == "heart_rate_zone":
+        zone = target.get("zone")
+        if not isinstance(zone, int) or zone < 1 or zone > 5:
+            raise ValueError("heart_rate_zone target requires zone between 1 and 5.")
+        return {"zoneNumber": zone}
+
+    if target_type == "pace":
+        value_sec_per_km = target.get("valueSecPerKm")
+        if not isinstance(value_sec_per_km, int | float) or value_sec_per_km <= 0:
+            raise ValueError("pace target requires positive valueSecPerKm.")
+        meters_per_second = 1000.0 / float(value_sec_per_km)
+        return {"targetValueOne": meters_per_second, "targetValueTwo": meters_per_second}
+
+    raise ValueError(f"Unsupported target type: {target.get('type')!r}")
+
+
+def _no_target_meta() -> dict[str, Any]:
+    """Retourne la target Garmin sans consigne."""
+    return {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"}
+
+
+def _estimate_duration_seconds(session_payload: dict[str, Any], session: dict[str, Any]) -> int:
+    """Estime la durée totale en secondes, avec fallback sur duration_min."""
+    estimated = _sum_time_seconds(session_payload.get("items"))
+    if estimated > 0:
+        return estimated
+    return int(session["duration_min"]) * 60
+
+
+def _sum_time_seconds(items: Any) -> int:
+    """Somme les durées basées sur le temps présentes dans les steps."""
+    if not isinstance(items, list):
+        return 0
+
+    total = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        kind = item.get("kind")
+        if kind == "step":
+            end_condition = item.get("endCondition")
+            if isinstance(end_condition, dict) and end_condition.get("type") == "time":
+                value = end_condition.get("valueSec")
+                if isinstance(value, int | float):
+                    total += int(value)
+        elif kind == "repeat":
+            repeat_count = item.get("repeatCount")
+            if isinstance(repeat_count, int) and repeat_count > 0:
+                total += repeat_count * _sum_time_seconds(item.get("items"))
+    return total
+
+
+def _join_non_empty(parts: list[Any]) -> str | None:
+    """Concatène des fragments texte non vides avec des sauts de ligne."""
+    clean = [str(part).strip() for part in parts if isinstance(part, str) and part.strip()]
+    if not clean:
+        return None
+    return "\n\n".join(clean)
 
 
 def _map_activity_type_to_sport(activity_type: str) -> dict[str, Any]:

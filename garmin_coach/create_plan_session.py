@@ -7,9 +7,19 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from garmin_coach.plans.write import create_plan_session
 from garmin_coach.jsonio import output_and_exit
+
+
+def _load_json_arg(inline_json: str | None, file_path: str | None) -> str | None:
+    """Charge un JSON depuis l'argument inline ou un fichier."""
+    if inline_json and file_path:
+        raise ValueError("Use only one of --session-payload-json or --session-payload-file.")
+    if file_path:
+        return Path(file_path).read_text(encoding="utf-8")
+    return inline_json
 
 
 def main() -> None:
@@ -27,9 +37,16 @@ def main() -> None:
     parser.add_argument("--status", default="draft", help="Statut initial")
     parser.add_argument("--tags-json", help="Tags supplémentaires JSON")
     parser.add_argument("--notes", help="Notes")
+    parser.add_argument("--session-payload-json", help="Payload canonique de séance JSON")
+    parser.add_argument("--session-payload-file", help="Fichier JSON de séance canonique")
     parser.add_argument("--workout-payload-json", help="Payload exportable Garmin JSON")
     parser.add_argument("--dry-run", action="store_true", help="Simule sans écrire")
     args = parser.parse_args()
+
+    try:
+        session_payload_json = _load_json_arg(args.session_payload_json, args.session_payload_file)
+    except Exception as exc:
+        output_and_exit({"status": "failed", "errors": [str(exc)], "warnings": []})
 
     result = create_plan_session(
         plan_id=args.plan_id,
@@ -45,6 +62,7 @@ def main() -> None:
         status=args.status,
         tags_json=args.tags_json,
         notes=args.notes,
+        session_payload_json=session_payload_json,
         workout_payload_json=args.workout_payload_json,
         dry_run=args.dry_run,
     )

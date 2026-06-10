@@ -104,6 +104,7 @@ def create_plan_session(
     status: str = "draft",
     tags_json: str | None = None,
     notes: str | None = None,
+    session_payload_json: str | None = None,
     workout_payload_json: str | None = None,
     dry_run: bool = False,
     db_path: Any = None,
@@ -118,6 +119,14 @@ def create_plan_session(
         canonical_status = SessionStatus(status)
     except ValueError:
         return error_response([f"Invalid session status: {status}. Valid: {[e.value for e in SessionStatus]}"])
+
+    if session_payload_json is not None:
+        try:
+            payload = json.loads(session_payload_json)
+        except json.JSONDecodeError:
+            return error_response(["Invalid session_payload_json format."])
+        if not isinstance(payload, dict):
+            return error_response(["session_payload_json must be a JSON object."])
 
     if dry_run:
         return success_response({
@@ -137,12 +146,13 @@ def create_plan_session(
             """INSERT INTO plan_sessions (
                 plan_id, planned_date, planned_time, activity_type, duration_min,
                 intensity, target_hr_low, target_hr_high, target_pace_sec_per_km,
-                target_rpe, status, tags_json, notes, workout_payload_json
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                target_rpe, status, tags_json, notes, session_payload_json, workout_payload_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 plan_id, planned_date, planned_time, activity_type, duration_min,
                 intensity, target_hr_low, target_hr_high, target_pace_sec_per_km,
-                target_rpe, canonical_status.value, tags_json, notes, workout_payload_json,
+                target_rpe, canonical_status.value, tags_json, notes, session_payload_json,
+                workout_payload_json,
             ),
         )
         conn.commit()
