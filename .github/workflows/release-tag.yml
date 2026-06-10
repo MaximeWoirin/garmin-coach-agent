@@ -1,0 +1,130 @@
+name: Release tag
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release-tag-master
+  cancel-in-progress: false
+
+jobs:
+  tag-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release label from merged PR
+        id: resolve
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.sha;
+            const { owner, repo } = context.repo;
+            const result = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner,
+              repo,
+              commit_sha: sha,
+            });
+
+            const candidates = result.data.filter(pr => pr.base.ref === 'master' && pr.merged_at);
+            if (candidates.length === 0) {
+              core.notice(`No merged PR associated with ${sha}; skipping release tagging.`);
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            const pr = candidates[0];
+            const releaseLabels = pr.labels
+              .map(label => label.name)
+              .filter(name => ['release:major', 'release:minor', 'release:patch', 'release:none'].includes(name));
+
+            if (releaseLabels.length !== 1) {
+              core.setFailed(`Expected exactly one release label on PR #${pr.number}, found: ${releaseLabels.join(', ') || '<none>'}`);
+              return;
+            }
+
+            core.info(`Resolved PR #${pr.number} with label ${releaseLabels[0]}`);
+            core.setOutput('skip', 'false');
+            core.setOutput('pr_number', String(pr.number));
+            core.setOutput('release_label', releaseLabels[0]);
+
+      - name: Stop when no release is needed
+        if: steps.resolve.outputs.skip == 'true' || steps.resolve.outputs.release_label == 'release:none'
+        run: echo "No release tag to create for this merge."
+
+      - name: Compute next version tag
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.release_label != 'release:none'
+        id: version
+        env:
+          RELEASE_LABEL: ${{ steps.resolve.outputs.release_label }}
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          latest_tag="$(git tag -l 'v*' --sort=-version:refname | head -n1)"
+          if [[ -z "$latest_tag" ]]; then
+            latest_tag="v0.0.0"
+          fi
+
+          version="${latest_tag#v}"
+          IFS='.' read -r major minor patch <<< "$version"
+
+          case "$RELEASE_LABEL" in
+            release:major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            release:minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            release:patch)
+              patch=$((patch + 1))
+              ;;
+            *)
+              echo "Unexpected release label: $RELEASE_LABEL" >&2
+              exit 1
+              ;;
+          esac
+
+          new_tag="v${major}.${minor}.${patch}"
+
+          if git rev-parse "$new_tag" >/dev/null 2>&1; then
+            echo "Tag $new_tag already exists; refusing to overwrite." >&2
+            exit 1
+          fi
+
+          echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+          echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create Git tag
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.release_label != 'release:none'
+        env:
+          NEW_TAG: ${{ steps.version.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEW_TAG" "$GITHUB_SHA" -m "Release $NEW_TAG"
+          git push origin "$NEW_TAG"
+
+      - name: Create GitHub release
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.release_label != 'release:none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_TAG: ${{ steps.version.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+          gh release create "$NEW_TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$NEW_TAG" \
+            --generate-notes
