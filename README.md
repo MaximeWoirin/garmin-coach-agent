@@ -49,6 +49,7 @@ Le script :
 - crée un runtime Python managé dans `<workspace>/.garmin-coach-agent/.venv`
 - installe un timer `systemd --user` pour la sync Garmin automatique (par défaut `OnCalendar=daily`)
 - installe un timer `systemd --user` pour exporter chaque jour vers Garmin les séances prévues demain
+- peut créer / mettre à jour un cron OpenClaw de weekly planning si un `session-key` ou une delivery explicite est fourni(e)
 - réécrit les commandes des skills pour pointer vers ce runtime
 - sauvegarde les fichiers remplacés dans `.garmin-coach-agent/backups/<timestamp>/`
 - sauvegarde aussi la config OpenClaw avant patch si un agent ou une allowlist doit être créé(e)
@@ -61,11 +62,19 @@ Options utiles :
 ./scripts/install-openclaw-agent.sh --new-agent coach-garmin --agent-name "Garmin Coach"
 ./scripts/install-openclaw-agent.sh --sync-on-calendar '*-*-* 06:00:00'
 ./scripts/install-openclaw-agent.sh --export-on-calendar '*-*-* 07:00:00'
+./scripts/install-openclaw-agent.sh --weekly-planning-session-key 'agent:garmin-coach:telegram:direct:8771763758'
+./scripts/install-openclaw-agent.sh --weekly-planning-to 'telegram:8771763758' --weekly-planning-channel telegram --weekly-planning-account garmin_clawch_bot
 ./scripts/install-openclaw-agent.sh --skip-systemd-sync
 ./scripts/install-openclaw-agent.sh --skip-systemd-export
+./scripts/install-openclaw-agent.sh --skip-weekly-planning-cron
 ./scripts/install-openclaw-agent.sh --workspace /chemin/vers/workspace
 ./scripts/install-openclaw-agent.sh --no-bootstrap
 ```
+
+Notes produit :
+
+- le weekly planning reste une feature du produit, mais il demande un vrai contexte cible ; l'installeur le crée seulement s'il sait où poster / dans quelle session tourner
+- le timer systemd d'export Garmin reste borné à **demain** ; il n'est pas utilisé pour publier toute une semaine d'un coup
 
 ## Statut
 

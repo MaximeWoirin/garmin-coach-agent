@@ -29,9 +29,18 @@ CREATE_AGENT_CONFIG=0
 PATCH_SKILLS_ALLOWLIST=0
 SKIP_SYSTEMD_SYNC=0
 SKIP_SYSTEMD_EXPORT=0
+SKIP_WEEKLY_PLANNING_CRON=0
 SYNC_ON_CALENDAR="daily"
 EXPORT_ON_CALENDAR="daily"
 SYNC_LOOKBACK_DAYS=3
+WEEKLY_PLANNING_ON_CALENDAR="0 18 * * 0"
+WEEKLY_PLANNING_TZ="UTC"
+WEEKLY_PLANNING_SESSION_KEY=""
+WEEKLY_PLANNING_CHANNEL=""
+WEEKLY_PLANNING_TO=""
+WEEKLY_PLANNING_ACCOUNT=""
+WEEKLY_PLANNING_NAME=""
+WEEKLY_PLANNING_MESSAGE=""
 
 usage() {
   cat <<'EOF'
@@ -54,6 +63,22 @@ Options:
   --sync-lookback-days N    lookback passed to sync-garmin (default: 3)
   --skip-systemd-sync       Do not install the Garmin sync systemd user timer
   --skip-systemd-export     Do not install the plan export systemd user timer
+  --skip-weekly-planning-cron
+                            Do not create/update the weekly planning OpenClaw cron
+  --weekly-planning-on-calendar EXPR
+                            Cron expression for weekly planning (default: "0 18 * * 0")
+  --weekly-planning-tz IANA Timezone for weekly planning cron (default: UTC)
+  --weekly-planning-session-key KEY
+                            Route weekly planning runs into an existing OpenClaw session
+  --weekly-planning-channel CHANNEL
+                            Delivery channel for weekly planning fallback announce
+  --weekly-planning-to DEST Delivery destination for weekly planning fallback announce
+  --weekly-planning-account ID
+                            Delivery account id for weekly planning fallback announce
+  --weekly-planning-name NAME
+                            Cron job name override (default: weekly-planning-<agent-id>)
+  --weekly-planning-message TEXT
+                            Agent prompt override for weekly planning cron
   --no-bootstrap            Do not install BOOTSTRAP.md
   --preserve-agent-core     Do not overwrite HEARTBEAT.md, IDENTITY.md, SOUL.md if they exist
   --skip-package-install    Copy files only; skip venv/package install
@@ -73,6 +98,7 @@ What it installs:
   - app snapshot + venv -> <install-root>/
   - systemd user timer  -> Garmin sync automatique (unless --skip-systemd-sync)
   - systemd user timer  -> export quotidien des plans du lendemain (unless --skip-systemd-export)
+  - OpenClaw cron        -> weekly planning, when session/delivery context is provided
 EOF
 }
 
@@ -880,6 +906,147 @@ else:
 PY
 }
 
+resolve_weekly_planning_defaults() {
+  if [[ -z "$WEEKLY_PLANNING_NAME" ]]; then
+    WEEKLY_PLANNING_NAME="weekly-planning-$SELECTED_AGENT_ID"
+  fi
+
+  if [[ -z "$WEEKLY_PLANNING_MESSAGE" ]]; then
+    WEEKLY_PLANNING_MESSAGE="Rendez-vous hebdomadaire de planification. Suis playbooks/weekly_planning.md pour préparer le programme de la semaine à venir : synchronise Garmin si nécessaire, lis objectifs, contraintes, état de forme et plan courant, puis crée ou ajuste le plan local de la semaine cible. Évite les doublons si le plan existe déjà. N'exporte vers Garmin que l'horizon court, sauf demande explicite de l'utilisateur. Termine par un résumé concis de la semaine et les points de vigilance."
+  fi
+}
+
+prompt_weekly_planning_if_needed() {
+  if [[ "$SKIP_WEEKLY_PLANNING_CRON" -eq 1 ]]; then
+    return
+  fi
+
+  if [[ -n "$WEEKLY_PLANNING_SESSION_KEY" || -n "$WEEKLY_PLANNING_TO" ]]; then
+    return
+  fi
+
+  if ! is_tty; then
+    return
+  fi
+
+  if ! prompt_yes_no "Créer aussi le cron OpenClaw de weekly planning pour l'agent $SELECTED_AGENT_ID ?" y; then
+    SKIP_WEEKLY_PLANNING_CRON=1
+    return
+  fi
+
+  WEEKLY_PLANNING_SESSION_KEY="$(prompt_line "Session key cible (recommandé; vide pour utiliser seulement une delivery explicite)" "$WEEKLY_PLANNING_SESSION_KEY")"
+
+  if [[ -z "$WEEKLY_PLANNING_SESSION_KEY" ]]; then
+    WEEKLY_PLANNING_CHANNEL="$(prompt_line "Channel de delivery (ex: telegram, discord)" "$WEEKLY_PLANNING_CHANNEL")"
+    WEEKLY_PLANNING_TO="$(prompt_line "Destination de delivery (chat/user id)" "$WEEKLY_PLANNING_TO")"
+    WEEKLY_PLANNING_ACCOUNT="$(prompt_line "Account id de delivery (optionnel)" "$WEEKLY_PLANNING_ACCOUNT")"
+    if [[ -z "$WEEKLY_PLANNING_TO" ]]; then
+      log "Skipping weekly planning cron: no session key or delivery destination provided."
+      SKIP_WEEKLY_PLANNING_CRON=1
+      return
+    fi
+  fi
+
+  WEEKLY_PLANNING_ON_CALENDAR="$(prompt_line "Expression cron pour le weekly planning" "$WEEKLY_PLANNING_ON_CALENDAR")"
+  WEEKLY_PLANNING_TZ="$(prompt_line "Timezone IANA du weekly planning" "$WEEKLY_PLANNING_TZ")"
+}
+
+create_or_update_weekly_planning_cron() {
+  local existing_id=""
+  local -a cron_cmd=()
+
+  if [[ "$SKIP_WEEKLY_PLANNING_CRON" -eq 1 ]]; then
+    log "Skipping weekly planning cron by request."
+    return
+  fi
+
+  if ! command -v openclaw >/dev/null 2>&1; then
+    log "openclaw CLI not found, skipping weekly planning cron creation"
+    return
+  fi
+
+  resolve_weekly_planning_defaults
+  prompt_weekly_planning_if_needed
+
+  if [[ "$SKIP_WEEKLY_PLANNING_CRON" -eq 1 ]]; then
+    return
+  fi
+
+  if [[ -z "$WEEKLY_PLANNING_SESSION_KEY" && -z "$WEEKLY_PLANNING_TO" ]]; then
+    log "Skipping weekly planning cron: pass --weekly-planning-session-key or --weekly-planning-to (with optional channel/account), or run interactively."
+    return
+  fi
+
+  existing_id="$(WEEKLY_PLANNING_NAME="$WEEKLY_PLANNING_NAME" SELECTED_AGENT_ID="$SELECTED_AGENT_ID" python3 - <<'PY'
+from __future__ import annotations
+import json
+import os
+import subprocess
+
+target_name = os.environ.get("WEEKLY_PLANNING_NAME", "")
+target_agent = os.environ.get("SELECTED_AGENT_ID", "")
+
+try:
+    raw = subprocess.check_output(["openclaw", "cron", "list", "--json"], stderr=subprocess.DEVNULL)
+    data = json.loads(raw)
+except Exception:
+    print("")
+    raise SystemExit
+
+for job in data.get("jobs", []):
+    if job.get("name") == target_name and job.get("agentId") == target_agent:
+        print(job.get("id", ""))
+        break
+else:
+    print("")
+PY
+)"
+
+  cron_cmd=(
+    openclaw cron add
+    --cron "$WEEKLY_PLANNING_ON_CALENDAR"
+    --name "$WEEKLY_PLANNING_NAME"
+    --agent "$SELECTED_AGENT_ID"
+    --message "$WEEKLY_PLANNING_MESSAGE"
+    --thinking high
+    --light-context
+  )
+
+  if [[ -n "$WEEKLY_PLANNING_TZ" ]]; then
+    cron_cmd+=(--tz "$WEEKLY_PLANNING_TZ")
+  fi
+
+  if [[ -n "$WEEKLY_PLANNING_SESSION_KEY" ]]; then
+    cron_cmd+=(--session-key "$WEEKLY_PLANNING_SESSION_KEY")
+  else
+    cron_cmd+=(--session isolated)
+  fi
+
+  if [[ -n "$WEEKLY_PLANNING_TO" ]]; then
+    cron_cmd+=(--announce --to "$WEEKLY_PLANNING_TO")
+    if [[ -n "$WEEKLY_PLANNING_CHANNEL" ]]; then
+      cron_cmd+=(--channel "$WEEKLY_PLANNING_CHANNEL")
+    fi
+    if [[ -n "$WEEKLY_PLANNING_ACCOUNT" ]]; then
+      cron_cmd+=(--account "$WEEKLY_PLANNING_ACCOUNT")
+    fi
+  fi
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] create/update weekly planning cron: %s\n' "$WEEKLY_PLANNING_NAME"
+    return
+  fi
+
+  if [[ -n "$existing_id" ]]; then
+    log "Updating existing weekly planning cron: $WEEKLY_PLANNING_NAME"
+    openclaw cron rm "$existing_id" >/dev/null 2>&1 || true
+  else
+    log "Creating weekly planning cron: $WEEKLY_PLANNING_NAME"
+  fi
+
+  "${cron_cmd[@]}" || log "Warning: Failed to create weekly planning cron"
+}
+
 main() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -934,6 +1101,42 @@ main() {
       --skip-systemd-export)
         SKIP_SYSTEMD_EXPORT=1
         shift
+        ;;
+      --skip-weekly-planning-cron)
+        SKIP_WEEKLY_PLANNING_CRON=1
+        shift
+        ;;
+      --weekly-planning-on-calendar)
+        WEEKLY_PLANNING_ON_CALENDAR="$2"
+        shift 2
+        ;;
+      --weekly-planning-tz)
+        WEEKLY_PLANNING_TZ="$2"
+        shift 2
+        ;;
+      --weekly-planning-session-key)
+        WEEKLY_PLANNING_SESSION_KEY="$2"
+        shift 2
+        ;;
+      --weekly-planning-channel)
+        WEEKLY_PLANNING_CHANNEL="$2"
+        shift 2
+        ;;
+      --weekly-planning-to)
+        WEEKLY_PLANNING_TO="$2"
+        shift 2
+        ;;
+      --weekly-planning-account)
+        WEEKLY_PLANNING_ACCOUNT="$2"
+        shift 2
+        ;;
+      --weekly-planning-name)
+        WEEKLY_PLANNING_NAME="$2"
+        shift 2
+        ;;
+      --weekly-planning-message)
+        WEEKLY_PLANNING_MESSAGE="$2"
+        shift 2
         ;;
       --no-bootstrap)
         WITH_BOOTSTRAP=0
@@ -1132,11 +1335,7 @@ EOF
     printf '[dry-run] run database migrations\n'
   fi
 
-  if [[ "$DRY_RUN" -eq 0 ]]; then
-    log "Skipping weekly planning cron auto-creation. Configure it explicitly per athlete/session if needed."
-  else
-    printf '[dry-run] skip weekly planning cron auto-creation\n'
-  fi
+  create_or_update_weekly_planning_cron
 
   log "Install done."
   log "Managed bin dir: $INSTALL_ROOT/.venv/bin"
