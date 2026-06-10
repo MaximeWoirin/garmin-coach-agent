@@ -169,6 +169,7 @@ CREATE TABLE plan_sessions (
 
   status TEXT NOT NULL DEFAULT 'proposed',
   garmin_event_id TEXT,
+  session_payload_json TEXT,
   workout_payload_json TEXT,
   tags_json TEXT,
   notes TEXT,
@@ -179,6 +180,34 @@ CREATE TABLE plan_sessions (
   FOREIGN KEY (plan_id) REFERENCES training_plans(id)
 );
 ```
+
+### Évolution visée pour `plan_sessions`
+
+Pour la V1 running structurée, la table doit converger vers cette séparation :
+
+- colonnes SQL minimales pour le workflow et le listing
+- `session_payload_json` pour la vérité canonique de la séance
+- `workout_payload_json` pour la projection Garmin exportable
+
+Colonnes minimales visées :
+- `plan_id`
+- `planned_date`
+- `planned_time`
+- `activity_type`
+- `duration_min`
+- `status`
+- `garmin_event_id`
+- `session_payload_json`
+- `workout_payload_json`
+- `notes` éventuellement
+
+Pour les séances running / trail / treadmill :
+- le détail des steps, repeats, end conditions et targets vit dans `session_payload_json`
+- `duration_min` sert surtout au listing et peut être dérivé du JSON quand c'est possible
+
+Pour les autres sports :
+- `session_payload_json` peut rester simple
+- l'export Garmin peut rester textuel
 
 ### `plan_reviews`
 
@@ -509,11 +538,17 @@ Pas de magie implicite.
 | target_rpe | INTEGER | nullable | RPE cible |
 | status | TEXT | NOT NULL, DEFAULT 'proposed' | Statut |
 | garmin_event_id | TEXT | nullable | Id Garmin si exporté |
-| workout_payload_json | TEXT | nullable | Payload exportable |
+| session_payload_json | TEXT | nullable, cible V1 | Source de vérité JSON de la séance |
+| workout_payload_json | TEXT | nullable | Payload Garmin dérivé / exportable |
 | tags_json | TEXT | nullable | Tags JSON |
 | notes | TEXT | nullable | Notes libres |
 | created_at | TEXT | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Date de création |
 | updated_at | TEXT | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Date de mise à jour |
+
+Notes d'architecture visées :
+- `session_payload_json` doit devenir la source de vérité métier pour les séances structurées
+- `workout_payload_json` reste un artefact technique orienté export Garmin
+- les colonnes plates (`target_*`, `intensity`, etc.) ne doivent plus porter seules la vérité du contenu riche
 
 ### `plan_reviews`
 

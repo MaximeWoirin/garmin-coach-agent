@@ -1,123 +1,353 @@
 # Modèle de séance
 
-## Principe
+## Objectif V1
 
-On garde un **modèle commun partagé** pour toutes les activités.
+La V1 ne cherche pas à résoudre tous les sports.
 
-Règle simple :
-- **toutes les activités ont une durée obligatoire**
-- certaines activités seulement ont une structure enrichie
-- le reste retombe sur une version simple, lisible et exportable vers Garmin
+Priorité produit :
+- produire de **vraies séances Garmin de course**
+- propres sur Garmin Connect et sur la montre
+- avec des **étapes / laps / targets** exploitables pendant l'effort
 
-Le modèle ne contient pas de champ `metadata` public.
+## Périmètre V1
 
-## Modèle commun
+### Sports structurés
 
-Champs communs à toutes les séances :
+La structure riche V1 s'applique uniquement à :
 
-- `sport`
-- `subSport` quand utile
-- `title`
-- `goal`
-- `description`
-- `notes`
-- `duration`
-- `distance` optionnelle
-- `intensity` / `zone` / `rpe` selon le besoin
+- `running`
+- `trail`
+- `treadmill`
 
-## Sports en version enrichie
+### Sports simples
 
-La version enrichie est réservée aux sports où la structure de séance apporte vraiment de la valeur.
+Tous les autres sports restent en version simple :
 
-V0 :
+- durée
+- intensité éventuelle
+- description lisible
+- export Garmin principalement textuel
 
-- running
-- trail
-- treadmill
+Exemples hors scope structuré V1 :
+- strength
+- climbing
+- yoga
+- hiking
+- mobility
 - cycling
-- indoor cycling
-- swim pool
-- open water swim
-- rowing
-- HIIT / cardio workout
+- swimming
 
-Les autres activités passent en **version simple**.
+## Principes de design
 
-## Version simple
+- Le modèle canonique est **orienté Garmin workout**, pas un modèle multi-sports abstrait maximaliste.
+- La **source de vérité** de la séance est un JSON structuré : `session_payload_json`.
+- `warmup`, `main`, `cooldown` ne sont **pas** imposés comme blocs obligatoires du schéma.
+- Une séance cohérente peut contenir échauffement, bloc principal et récupération, mais cela relève de la **construction métier / skill**, pas d'une contrainte technique du format.
+- Les colonnes SQL plates servent surtout à l'indexation, au filtrage simple et au workflow.
 
-Pour une activité simple, on conserve seulement :
+## Source de vérité
 
-- la durée
-- la description
-- les notes
+### Canonique
 
-Optionnellement, on peut garder une distance ou une cible globale si elle existe déjà dans la séance.
+`session_payload_json` contient :
 
-## Version enrichie
+- le sens produit de la séance
+- la structure des steps
+- les conditions de fin
+- les targets
+- les commentaires lisibles
 
-Une séance enrichie ajoute une structure interne de type Garmin-compatible.
+### Dérivé / workflow
 
-### Structure de base
+Les colonnes SQL restent minimales et servent à :
 
-- `warmup`
-- `main`
-- `cooldown`
+- retrouver les séances par date / statut / activité
+- afficher rapidement les listes
+- suivre le workflow local et l'export Garmin
 
-### Steps
+### Export Garmin
 
-Les targets et zones sont **attachées aux steps**.
+`workout_payload_json` n'est **pas** la source de vérité métier.
 
-Chaque step peut porter :
+Son rôle visé :
+- payload Garmin dérivé du `session_payload_json`
+- cache / trace de la version exportable
+- zone technique de compatibilité avec l'API Garmin
 
-- une durée
-- un type de durée
-- un target type
-- une plage de target basse/haute
+Donc :
+- on **conçoit** une séance dans `session_payload_json`
+- on **génère** ensuite `workout_payload_json` si la séance est exportable en workout structuré Garmin
 
-Pour les intervalles :
+## Forme canonique V1
 
-- un intervalle contient un `activeStep`
-- un `restStep` si besoin
-- un `repetitionNumber`
+Une séance structurée V1 est une **suite ordonnée d'items**.
 
-### Course
+Un item peut être :
+- un `step`
+- un `repeat`
 
-Pour la course, on colle au plus près du modèle Garmin :
-
-- échauffement
-- blocs de travail
+Cela permet de représenter correctement les séances de type :
+- échauffement libre
+- blocs d'intervalles répétés
 - récupérations
 - retour au calme
 
-Le sous-type dépend du contexte :
+## Objet top-level
 
-- road / running
-- trail
-- treadmill
+Exemple de forme canonique :
 
-## Exemples de cible par step
+```json
+{
+  "schemaVersion": 1,
+  "sport": "running",
+  "subSport": "trail",
+  "format": "structured",
+  "title": "6 x 800 m allure 10 km",
+  "description": "Séance de seuil / allure spécifique.",
+  "notes": "Rester relâché sur les 2 premières répétitions.",
+  "items": []
+}
+```
 
-- allure
-- fréquence cardiaque
-- cadence
-- distance
-- durée
-- puissance si elle est utilisée
+### Champs top-level V1
 
-## Mapping Garmin
+- `schemaVersion`
+- `sport`
+- `subSport` optionnel
+- `format` = `structured | simple`
+- `title` optionnel
+- `description` optionnel
+- `notes` optionnel
+- `items` pour la version structurée
 
-### Activité enrichie
+## Item `step`
 
-On exporte une séance structurée vers la Training API Garmin quand la structure est représentable.
+Un `step` représente une étape Garmin simple.
 
-### Activité simple
+Exemple :
 
-On exporte une séance texte avec :
+```json
+{
+  "kind": "step",
+  "stepType": "warmup",
+  "endCondition": {
+    "type": "time",
+    "valueSec": 900
+  },
+  "target": {
+    "type": "heart_rate_zone",
+    "zone": 2
+  },
+  "comment": "Départ facile"
+}
+```
 
-- `description`
-- `notes`
+### Champs V1 d'un `step`
 
-### Fallback
+- `kind` = `step`
+- `stepType`
+- `endCondition`
+- `target` optionnel
+- `comment` optionnel
 
-Si Garmin ne supporte pas proprement la structure d’une activité donnée, on garde la version simple.
+### `stepType`
 
+V1 doit rester simple et proche des usages Garmin running.
+
+Types recommandés :
+- `warmup`
+- `run`
+- `interval`
+- `recovery`
+- `cooldown`
+- `rest`
+
+Le skill pourra restreindre ou normaliser davantage si nécessaire.
+
+## Item `repeat`
+
+Un `repeat` permet d'exprimer une répétition de sous-steps.
+
+Exemple :
+
+```json
+{
+  "kind": "repeat",
+  "repeatCount": 6,
+  "items": [
+    {
+      "kind": "step",
+      "stepType": "interval",
+      "endCondition": {
+        "type": "distance",
+        "valueMeters": 800
+      },
+      "target": {
+        "type": "pace",
+        "valueSecPerKm": 255
+      }
+    },
+    {
+      "kind": "step",
+      "stepType": "recovery",
+      "endCondition": {
+        "type": "time",
+        "valueSec": 90
+      }
+    }
+  ]
+}
+```
+
+### Champs V1 d'un `repeat`
+
+- `kind` = `repeat`
+- `repeatCount`
+- `items`
+
+## Conditions de fin supportées en V1
+
+V1 supporte uniquement les conditions validées pendant l'interview produit :
+
+- `time`
+- `distance`
+- `lap_button`
+
+### `time`
+
+```json
+{ "type": "time", "valueSec": 600 }
+```
+
+### `distance`
+
+```json
+{ "type": "distance", "valueMeters": 1000 }
+```
+
+### `lap_button`
+
+```json
+{ "type": "lap_button" }
+```
+
+Les autres formes Garmin possibles (`calories`, `heart_rate`, etc.) ne font pas partie de la V1.
+
+## Targets supportées en V1
+
+V1 supporte uniquement :
+
+- `pace`
+- `heart_rate_zone`
+
+### Target allure
+
+```json
+{ "type": "pace", "valueSecPerKm": 270 }
+```
+
+### Target zone de FC
+
+```json
+{ "type": "heart_rate_zone", "zone": 3 }
+```
+
+Les autres targets possibles côté Garmin (`cadence`, `heart_rate`, `power`, `power_zone`) sont hors scope V1.
+
+## Séances simples hors running structuré
+
+Pour les sports hors scope V1, on garde un format simple.
+
+Exemple :
+
+```json
+{
+  "schemaVersion": 1,
+  "sport": "strength",
+  "format": "simple",
+  "title": "Core + mobilité",
+  "description": "20 min de gainage et mobilité générale.",
+  "notes": "Accent sur la stabilité du tronc.",
+  "simple": {
+    "durationMin": 20,
+    "intensity": "easy"
+  }
+}
+```
+
+## Conséquences stockage / architecture
+
+### Colonnes SQL minimales visées
+
+À terme, `plan_sessions` doit surtout garder :
+
+- `plan_id`
+- `planned_date`
+- `planned_time`
+- `activity_type`
+- `duration_min`
+- `status`
+- `garmin_event_id`
+- `session_payload_json`
+- `workout_payload_json`
+- `notes` éventuellement
+
+### Rôle des colonnes plates existantes
+
+Les champs plats comme :
+- `intensity`
+- `target_hr_low`
+- `target_hr_high`
+- `target_pace_sec_per_km`
+- `target_rpe`
+
+ne doivent plus porter la vérité métier de la séance structurée V1.
+
+Ils peuvent :
+- rester transitoirement pour compatibilité / lecture simple
+- être dérivés du JSON quand c'est utile
+- disparaître plus tard si le modèle JSON suffit
+
+### `duration_min`
+
+`duration_min` reste utile comme champ simple de listing / filtre.
+
+Pour une séance structurée, sa valeur peut être :
+- calculée depuis les steps quand c'est possible
+- approximative / nulle si une partie importante dépend de `lap_button`
+
+## Génération de séance cohérente
+
+Le schéma n'impose pas une séance pédagogiquement bonne.
+
+C'est le rôle du skill / playbook de rappeler qu'une séance de course cohérente contient souvent :
+
+- un échauffement
+- un bloc central utile à l'objectif
+- une récupération / retour au calme
+
+Autrement dit :
+- le **format** reste libre et Garmin-like
+- la **cohérence coaching** vit dans les règles métier
+
+## Rendu et export
+
+### Running / trail / treadmill
+
+Quand `format = structured` et que le contenu respecte la V1 :
+- on génère un `workout_payload_json` Garmin
+- on exporte un vrai workout structuré
+
+### Autres sports
+
+Quand `format = simple` ou que la structure n'est pas représentable proprement :
+- on garde un export simple
+- le texte doit rester lisible et utile dans Garmin
+
+## Non-objectifs V1
+
+- couvrir tous les sports avec la même richesse
+- modéliser toutes les target types Garmin
+- modéliser toutes les end conditions Garmin
+- imposer un énorme schéma polymorphe
+- bloquer la suite du produit sur une abstraction trop générale
