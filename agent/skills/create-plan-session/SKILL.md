@@ -28,6 +28,8 @@ description: Use after create-plan-draft to add one session to a plan.
   [--status draft|proposed|exported|done|skipped|canceled] \
   [--tags-json '["tag"]'] \
   [--notes "..."] \
+  [--session-payload-json '{...}'] \
+  [--session-payload-file /path/to/session.json] \
   [--workout-payload-json '{"workoutName":"..."}'] \
   [--dry-run]
 ```
@@ -36,7 +38,43 @@ description: Use after create-plan-draft to add one session to a plan.
 
 - `--plan-id`, `--planned-date`, `--activity-type`, `--duration-min` sont requis.
 - `--status` existe vraiment et vaut `draft` par défaut.
-- `--workout-payload-json` permet de fournir un payload Garmin déjà préparé.
+- `--session-payload-json` et `--session-payload-file` sont les entrées à privilégier pour une séance running structurée V1.
+- `--session-payload-json` et `--session-payload-file` sont mutuellement exclusifs.
+- `--workout-payload-json` reste un escape hatch technique quand un payload Garmin précis est déjà préparé.
+
+## Quand utiliser une séance structurée
+
+Utiliser `session_payload_json` pour les vraies séances Garmin de course quand le rendu des étapes compte vraiment :
+
+- `running`
+- `trail`
+- `treadmill`
+
+Typiquement : fractionné, tempo structuré, séance avec répétitions, échauffement / récupération distincts.
+
+Rester en mode simple quand la séance est juste :
+
+- une durée
+- une intensité éventuelle
+- une note lisible
+
+## Bonne structure V1
+
+Pour une bonne séance structurée V1 :
+
+- `format = "structured"`
+- `sport` dans `running|trail|treadmill`
+- suite ordonnée de `items`
+- `kind = "step"` ou `kind = "repeat"`
+- `warmup` / bloc principal / `cooldown` recommandés, mais pas imposés
+- end conditions V1 : `time`, `distance`, `lap_button`
+- targets V1 : `pace`, `heart_rate_zone`
+
+Préférer une structure simple et Garmin-like :
+
+- pas de blocs abstraits inutiles
+- pas de JSON verbeux si une séance simple suffit
+- commentaires utiles au niveau des `step`, pas roman global dans `notes`
 
 ## Sortie typique
 

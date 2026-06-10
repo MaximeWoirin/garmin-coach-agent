@@ -28,6 +28,31 @@
 - réserver l’export Garmin aux séances proches de l’exécution
 - si une séance est déjà `exported`, préférer une logique de remplacement plutôt qu’une mutation opaque
 
+## Choisir simple vs structuré
+
+Au moment de créer les séances :
+
+- utiliser une **séance simple** pour les blocs faciles à résumer en durée + intensité + note
+- utiliser une **séance structurée** seulement quand le rendu Garmin des étapes compte vraiment
+
+Pour V1, le mode structuré est surtout pertinent pour :
+
+- `running`
+- `trail`
+- `treadmill`
+
+Bon pattern recommandé :
+
+- warmup optionnel
+- bloc principal clair en `step` / `repeat`
+- cooldown optionnel
+
+Éviter de structurer pour rien :
+
+- pas de faux JSON riche pour une séance simple
+- pas de blocs abstraits qui n'apportent rien au rendu Garmin
+- si la séance n'a pas besoin d'étapes lisibles sur Garmin, rester simple
+
 ## Sortie attendue
 
 - vue d’ensemble de la semaine
