@@ -177,6 +177,8 @@ def test_build_workout_payload_from_session_payload_json() -> None:
     payload = _build_workout_payload(session)
 
     assert payload["workoutName"] == "6 x 400m"
+    assert payload["estimatedDurationInSecs"] == 1716
+    assert payload["description"] == "Séance piste"
     assert payload["sportType"]["sportTypeKey"] == "running"
     steps = payload["workoutSegments"][0]["workoutSteps"]
     assert steps[0]["stepType"]["stepTypeKey"] == "warmup"
@@ -230,6 +232,36 @@ def test_export_plan_persists_generated_workout_payload(mock_get_client: MagicMo
     assert row[0] == "exported"
     assert row[1] == "4242"
     assert json.loads(row[2])["workoutName"] == "Tempo"
+
+
+def test_build_workout_payload_prefers_single_clean_description() -> None:
+    session_payload = {
+        "schemaVersion": 1,
+        "sport": "running",
+        "format": "structured",
+        "title": "Tempo",
+        "description": "Description propre",
+        "notes": "Notes payload",
+        "items": [
+            {
+                "kind": "step",
+                "stepType": "interval",
+                "endCondition": {"type": "time", "valueSec": 1200},
+            }
+        ],
+    }
+    session = {
+        "activity_type": "running",
+        "planned_date": "2026-06-03",
+        "duration_min": 45,
+        "notes": "Notes session",
+        "session_payload_json": json.dumps(session_payload),
+        "workout_payload_json": None,
+    }
+
+    payload = _build_workout_payload(session)
+
+    assert payload["description"] == "Description propre"
 
 
 @pytest.mark.parametrize(

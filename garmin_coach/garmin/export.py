@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from math import ceil
 from datetime import date, timedelta
 from typing import Any
 
@@ -257,9 +258,7 @@ def _build_workout_payload_from_session_payload(
         or session_payload.get("description")
         or f"{session['activity_type']} - {session['planned_date']}"
     )
-    description = _join_non_empty(
-        [session_payload.get("description"), session_payload.get("notes"), session.get("notes")]
-    )
+    description = _choose_workout_description(session_payload, session)
 
     payload = {
         "workoutName": workout_name,
@@ -289,9 +288,7 @@ def _build_simple_payload_from_session_payload(
         or session_payload.get("description")
         or f"{session['activity_type']} - {session['planned_date']}"
     )
-    description = _join_non_empty(
-        [session_payload.get("description"), session_payload.get("notes"), session.get("notes")]
-    )
+    description = _choose_workout_description(session_payload, session)
 
     payload = {
         "workoutName": workout_name,
@@ -481,7 +478,7 @@ def _estimate_duration_seconds(session_payload: dict[str, Any], session: dict[st
 
 
 def _sum_time_seconds(items: Any) -> int:
-    """Somme les durées basées sur le temps présentes dans les steps."""
+    """Somme les durées estimables présentes dans les steps."""
     if not isinstance(items, list):
         return 0
 
@@ -491,11 +488,7 @@ def _sum_time_seconds(items: Any) -> int:
             continue
         kind = item.get("kind")
         if kind == "step":
-            end_condition = item.get("endCondition")
-            if isinstance(end_condition, dict) and end_condition.get("type") == "time":
-                value = end_condition.get("valueSec")
-                if isinstance(value, int | float):
-                    total += int(value)
+            total += _estimate_step_seconds(item)
         elif kind == "repeat":
             repeat_count = item.get("repeatCount")
             if isinstance(repeat_count, int) and repeat_count > 0:
@@ -503,12 +496,55 @@ def _sum_time_seconds(items: Any) -> int:
     return total
 
 
-def _join_non_empty(parts: list[Any]) -> str | None:
-    """Concatène des fragments texte non vides avec des sauts de ligne."""
-    clean = [str(part).strip() for part in parts if isinstance(part, str) and part.strip()]
-    if not clean:
-        return None
-    return "\n\n".join(clean)
+def _estimate_step_seconds(item: dict[str, Any]) -> int:
+    """Estime la durée d'un step à partir de son endCondition et de sa target."""
+    end_condition = item.get("endCondition")
+    if not isinstance(end_condition, dict):
+        return 0
+
+    condition_type = str(end_condition.get("type") or "").strip().lower().replace("-", "_")
+    if condition_type == "time":
+        value = end_condition.get("valueSec")
+        if isinstance(value, int | float) and value > 0:
+            return int(value)
+        return 0
+
+    if condition_type != "distance":
+        return 0
+
+    distance_m = end_condition.get("valueMeters")
+    if not isinstance(distance_m, int | float) or distance_m <= 0:
+        return 0
+
+    target = item.get("target")
+    if not isinstance(target, dict):
+        return 0
+
+    target_type = str(target.get("type") or "").strip().lower().replace("-", "_")
+    if target_type != "pace":
+        return 0
+
+    value_sec_per_km = target.get("valueSecPerKm")
+    if not isinstance(value_sec_per_km, int | float) or value_sec_per_km <= 0:
+        return 0
+
+    seconds = float(distance_m) * float(value_sec_per_km) / 1000.0
+    return ceil(seconds)
+
+
+def _choose_workout_description(
+    session_payload: dict[str, Any],
+    session: dict[str, Any],
+) -> str | None:
+    """Retourne une description top-level courte et propre."""
+    for candidate in (
+        session_payload.get("description"),
+        session_payload.get("notes"),
+        session.get("notes"),
+    ):
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    return None
 
 
 def _map_activity_type_to_sport(activity_type: str) -> dict[str, Any]:
