@@ -1,0 +1,71 @@
+name: Pull request conventions
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate-branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR source branch name
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+
+          pattern='^(feat|fix|docs|refactor|chore|spike)/[a-z0-9][a-z0-9._-]*$'
+
+          echo "Checking branch: $BRANCH_NAME"
+
+          if [[ ! "$BRANCH_NAME" =~ $pattern ]]; then
+            echo "Invalid branch name: $BRANCH_NAME"
+            echo "Expected format: <type>/<slug>"
+            echo "Allowed types: feat, fix, docs, refactor, chore, spike"
+            echo "Example: feat/persisted-coach-config"
+            exit 1
+          fi
+
+  validate-release-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate release label
+        env:
+          LABELS_JSON: ${{ toJson(github.event.pull_request.labels) }}
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          labels = json.loads(os.environ["LABELS_JSON"])
+          names = [label["name"] for label in labels]
+          release_labels = [
+              name for name in names
+              if name in {
+                  "release:major",
+                  "release:minor",
+                  "release:patch",
+                  "release:none",
+              }
+          ]
+
+          print("PR labels:", ", ".join(names) if names else "<none>")
+
+          if len(release_labels) != 1:
+              print(
+                  "Expected exactly one release label among: "
+                  "release:major, release:minor, release:patch, release:none",
+                  file=sys.stderr,
+              )
+              print(f"Found: {release_labels}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Release label OK: {release_labels[0]}")
+          PY
