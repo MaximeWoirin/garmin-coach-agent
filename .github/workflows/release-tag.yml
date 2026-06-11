@@ -106,6 +106,56 @@ jobs:
           echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
           echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
 
+      - name: Bump pyproject version to release tag
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.release_label != 'release:none'
+        env:
+          NEW_TAG: ${{ steps.version.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+from pathlib import Path
+import os
+import re
+
+path = Path('pyproject.toml')
+text = path.read_text()
+new_version = os.environ['NEW_TAG'].removeprefix('v')
+
+updated, count = re.subn(
+    r'(?m)^(version\s*=\s*")([^"]+)(")$',
+    rf'\g<1>{new_version}\3',
+    text,
+    count=1,
+)
+if count != 1:
+    raise SystemExit('Could not find project version in pyproject.toml')
+
+path.write_text(updated)
+PY
+
+      - name: Set up Python
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.release_label != 'release:none'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build Python artifacts
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.release_label != 'release:none'
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip build
+          python -m build --sdist --wheel --outdir dist
+
+      - name: Build OpenClaw agent bundle
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.release_label != 'release:none'
+        env:
+          NEW_TAG: ${{ steps.version.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar -czf "dist/garmin-coach-agent-openclaw-${NEW_TAG}.tar.gz" -C "$GITHUB_WORKSPACE" agent
+
       - name: Create Git tag
         if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.release_label != 'release:none'
         env:
@@ -127,4 +177,6 @@ jobs:
           gh release create "$NEW_TAG" \
             --target "$GITHUB_SHA" \
             --title "$NEW_TAG" \
-            --generate-notes
+            --generate-notes \
+            dist/*.whl \
+            "dist/garmin-coach-agent-openclaw-${NEW_TAG}.tar.gz"
