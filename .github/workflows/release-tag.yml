@@ -71,7 +71,24 @@ jobs:
 
           latest_tag="$(git tag -l 'v*' --sort=-version:refname | head -n1)"
           if [[ -z "$latest_tag" ]]; then
-            latest_tag="v0.0.0"
+            pyproject_version="$(python3 - <<'PY'
+import tomllib
+from pathlib import Path
+
+data = tomllib.loads(Path('pyproject.toml').read_text())
+print(data['project']['version'])
+PY
+)"
+            new_tag="v${pyproject_version}"
+
+            if git rev-parse "$new_tag" >/dev/null 2>&1; then
+              echo "Tag $new_tag already exists; refusing to overwrite." >&2
+              exit 1
+            fi
+
+            echo "latest_tag=<none>" >> "$GITHUB_OUTPUT"
+            echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           version="${latest_tag#v}"
@@ -179,4 +196,4 @@ PY
             --title "$NEW_TAG" \
             --generate-notes \
             dist/*.whl \
-            "dist/garmin-coach-agent-openclaw-${NEW_TAG}.tar.gz"
+            dist/*.tar.gz
