@@ -71,14 +71,7 @@ jobs:
 
           latest_tag="$(git tag -l 'v*' --sort=-version:refname | head -n1)"
           if [[ -z "$latest_tag" ]]; then
-            pyproject_version="$(python3 - <<'PY'
-import tomllib
-from pathlib import Path
-
-data = tomllib.loads(Path('pyproject.toml').read_text())
-print(data['project']['version'])
-PY
-)"
+            pyproject_version="$(python3 -c 'import tomllib, pathlib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
             new_tag="v${pyproject_version}"
 
             if git rev-parse "$new_tag" >/dev/null 2>&1; then
@@ -130,26 +123,7 @@ PY
         run: |
           set -euo pipefail
 
-          python3 - <<'PY'
-from pathlib import Path
-import os
-import re
-
-path = Path('pyproject.toml')
-text = path.read_text()
-new_version = os.environ['NEW_TAG'].removeprefix('v')
-
-updated, count = re.subn(
-    r'(?m)^(version\s*=\s*")([^"]+)(")$',
-    rf'\g<1>{new_version}\3',
-    text,
-    count=1,
-)
-if count != 1:
-    raise SystemExit('Could not find project version in pyproject.toml')
-
-path.write_text(updated)
-PY
+          python3 -c 'from pathlib import Path; import os, re; path = Path("pyproject.toml"); text = path.read_text(); new_version = os.environ["NEW_TAG"].removeprefix("v"); updated, count = re.subn(r"(?m)^(version\s*=\s*\")([^\"]+)(\")$", rf"\g<1>{new_version}\3", text, count=1); assert count == 1, "Could not find project version in pyproject.toml"; path.write_text(updated)'
 
       - name: Set up Python
         if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.release_label != 'release:none'
