@@ -538,15 +538,15 @@ tomorrow="\${export_info[0]}"
 week_start="\${export_info[1]}"
 plan_id="\${export_info[2]:-}"
 
-if [[ -z "$plan_id" ]]; then
-  echo "No active/draft plan found for week $week_start; skipping Garmin export."
+if [[ -z "\$plan_id" ]]; then
+  echo "No active/draft plan found for week \$week_start; skipping Garmin export."
   exit 0
 fi
 
 exec "$managed_venv_python" -m garmin_coach.export_plan_garmin \
-  --plan-id "$plan_id" \
-  --start-date "$tomorrow" \
-  --end-date "$tomorrow"
+  --plan-id "\$plan_id" \
+  --start-date "\$tomorrow" \
+  --end-date "\$tomorrow"
 EOF
   chmod +x "$helper_script"
 
