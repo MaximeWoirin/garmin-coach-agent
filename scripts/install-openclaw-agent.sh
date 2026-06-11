@@ -355,7 +355,7 @@ create_venv_and_install() {
   fi
 
   if command -v uv >/dev/null 2>&1; then
-    uv venv "$venv_dir" --python "$python_bin" >/dev/null
+    uv venv "$venv_dir" --python "$python_bin" --allow-existing >/dev/null
     uv pip install --python "$venv_dir/bin/python" "$app_dir" >/dev/null
   else
     "$python_bin" -m venv "$venv_dir"
@@ -640,10 +640,20 @@ for entry in entries:
 for agent_id in by_id:
     if agent_id not in ordered_ids:
         ordered_ids.append(agent_id)
+
+def resolve_model(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        primary = value.get("primary")
+        if isinstance(primary, str):
+            return primary
+    return ""
+
 for agent_id in ordered_ids:
     entry = by_id[agent_id]
     name = entry.get("name") or ("Main Agent" if agent_id == "main" else agent_id)
-    model = entry.get("model") or defaults.get("model") or ""
+    model = resolve_model(entry.get("model")) or resolve_model(defaults.get("model")) or ""
     workspace = entry.get("workspace")
     if workspace:
         resolved_workspace = os.path.expanduser(workspace)

@@ -24,7 +24,7 @@ def _write_openclaw_config(path: Path, workspace: Path) -> None:
                             "name": "Garmin Coach",
                             "workspace": str(workspace),
                             "agentDir": str(workspace / "agent"),
-                            "model": "azure/gpt-5.4-1",
+                            "model": {"primary": "azure/gpt-5.4-1"},
                         }
                     ],
                 }
