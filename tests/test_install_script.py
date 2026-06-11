@@ -36,7 +36,12 @@ def _write_openclaw_config(path: Path, workspace: Path) -> None:
     )
 
 
-def _run_installer(tmp_path: Path, *extra_args: str) -> subprocess.CompletedProcess[str]:
+def _run_installer(
+    tmp_path: Path,
+    *extra_args: str,
+    extra_env: dict[str, str] | None = None,
+    skip_weekly: bool = True,
+) -> subprocess.CompletedProcess[str]:
     home = tmp_path / "home"
     workspace = tmp_path / "workspace"
     config_path = home / ".openclaw" / "openclaw.json"
@@ -47,6 +52,8 @@ def _run_installer(tmp_path: Path, *extra_args: str) -> subprocess.CompletedProc
 
     env = os.environ.copy()
     env["HOME"] = str(home)
+    if extra_env:
+        env.update(extra_env)
 
     cmd = [
         "bash",
@@ -60,9 +67,10 @@ def _run_installer(tmp_path: Path, *extra_args: str) -> subprocess.CompletedProc
         "--skip-package-install",
         "--skip-systemd-sync",
         "--skip-systemd-export",
-        "--skip-weekly-planning-cron",
         *extra_args,
     ]
+    if skip_weekly:
+        cmd.insert(len(cmd) - len(extra_args), "--skip-weekly-planning-cron")
     result = subprocess.run(
         cmd,
         cwd=REPO_DIR,
@@ -152,3 +160,74 @@ def test_install_script_preserves_existing_weekly_settings_on_update(tmp_path: P
 
     assert manifest["install_mode"] == "update"
     assert "Mode:           update" in second.stdout
+
+
+def test_install_script_keeps_existing_weekly_cron_on_edit_failure(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    state_path = tmp_path / "cron-state.json"
+    log_path = tmp_path / "openclaw.log"
+    state_path.write_text(
+        json.dumps(
+            {
+                "jobs": [
+                    {
+                        "id": "existing-id",
+                        "name": "weekly-coach",
+                        "agentId": "coach",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (fake_bin / "openclaw").write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "printf '%s\\n' \"$*\" >> \"$FAKE_OPENCLAW_LOG\"\n"
+        "if [[ \"${1:-}\" == cron && \"${2:-}\" == list && \"${3:-}\" == --json ]]; then\n"
+        "  cat \"$FAKE_OPENCLAW_STATE\"\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == cron && \"${2:-}\" == edit ]]; then\n"
+        "  echo 'scope upgrade pending approval' >&2\n"
+        "  exit 1\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == cron && \"${2:-}\" == add ]]; then\n"
+        "  echo '{\"id\":\"new-id\"}'\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == cron && \"${2:-}\" == rm ]]; then\n"
+        "  echo 'unexpected rm' >&2\n"
+        "  exit 99\n"
+        "fi\n"
+        "echo 'unsupported fake openclaw invocation' >&2\n"
+        "exit 2\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "openclaw").chmod(0o755)
+
+    result = _run_installer(
+        tmp_path,
+        "--weekly-planning-session-key",
+        "session:coach:telegram",
+        "--weekly-planning-model",
+        "azure/gpt-5.4-1",
+        "--weekly-planning-tz",
+        "UTC",
+        "--weekly-planning-name",
+        "weekly-coach",
+        extra_env={
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_OPENCLAW_STATE": str(state_path),
+            "FAKE_OPENCLAW_LOG": str(log_path),
+        },
+        skip_weekly=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Warning: Failed to update existing weekly planning cron; keeping current job." in result.stdout
+    log = log_path.read_text(encoding="utf-8")
+    assert "cron list --json" in log
+    assert "cron edit existing-id" in log
+    assert "cron rm" not in log

@@ -1083,6 +1083,8 @@ prompt_weekly_planning_if_needed() {
 create_or_update_weekly_planning_cron() {
   local existing_id=""
   local -a cron_cmd=()
+  local action_label="create"
+  local command_output=""
 
   resolve_weekly_planning_defaults
 
@@ -1132,15 +1134,28 @@ else:
 PY
 )"
 
-  cron_cmd=(
-    openclaw cron add
-    --cron "$WEEKLY_PLANNING_ON_CALENDAR"
-    --name "$WEEKLY_PLANNING_NAME"
-    --agent "$SELECTED_AGENT_ID"
-    --message "$WEEKLY_PLANNING_MESSAGE"
-    --thinking high
-    --light-context
-  )
+  if [[ -n "$existing_id" ]]; then
+    action_label="update"
+    cron_cmd=(
+      openclaw cron edit "$existing_id"
+      --cron "$WEEKLY_PLANNING_ON_CALENDAR"
+      --name "$WEEKLY_PLANNING_NAME"
+      --agent "$SELECTED_AGENT_ID"
+      --message "$WEEKLY_PLANNING_MESSAGE"
+      --thinking high
+      --light-context
+    )
+  else
+    cron_cmd=(
+      openclaw cron add
+      --cron "$WEEKLY_PLANNING_ON_CALENDAR"
+      --name "$WEEKLY_PLANNING_NAME"
+      --agent "$SELECTED_AGENT_ID"
+      --message "$WEEKLY_PLANNING_MESSAGE"
+      --thinking high
+      --light-context
+    )
+  fi
 
   if [[ -n "$WEEKLY_PLANNING_MODEL" ]]; then
     cron_cmd+=(--model "$WEEKLY_PLANNING_MODEL")
@@ -1174,15 +1189,19 @@ PY
 
   if [[ -n "$existing_id" ]]; then
     log "Updating existing weekly planning cron: $WEEKLY_PLANNING_NAME"
-    openclaw cron rm "$existing_id" >/dev/null 2>&1 || true
   else
     log "Creating weekly planning cron: $WEEKLY_PLANNING_NAME"
   fi
 
-  if "${cron_cmd[@]}"; then
+  if command_output="$("${cron_cmd[@]}" 2>&1)"; then
+    [[ -n "$command_output" ]] && printf '%s\n' "$command_output"
     FEATURE_WEEKLY_PLANNING=1
+  elif [[ -n "$existing_id" ]]; then
+    log "Warning: Failed to update existing weekly planning cron; keeping current job."
+    [[ -n "$command_output" ]] && printf '%s\n' "$command_output" >&2
   else
     log "Warning: Failed to create weekly planning cron"
+    [[ -n "$command_output" ]] && printf '%s\n' "$command_output" >&2
   fi
 }
 
