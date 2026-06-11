@@ -23,23 +23,59 @@ declare -a installed_venvs=()
 
 # Extraction des installations depuis la config OpenClaw
 readarray -t agent_lines < <(python3 - "$CONFIG_PATH" <<'PY'
-import json, os, sys
+from __future__ import annotations
+
+import json
+import os
+import pathlib
+import sys
+
+
+def load_manifest(install_root: pathlib.Path) -> dict[str, str]:
+    manifest_json = install_root / "manifest.json"
+    if manifest_json.exists():
+        data = json.loads(manifest_json.read_text(encoding="utf-8"))
+        return {
+            "app_version": str(data.get("app_version", "unknown")),
+            "data_dir": str(data.get("paths", {}).get("data_dir", "")),
+            "managed_venv": str(data.get("paths", {}).get("managed_venv", "")),
+        }
+
+    manifest_txt = install_root / "manifest.txt"
+    if manifest_txt.exists():
+        legacy: dict[str, str] = {}
+        for line in manifest_txt.read_text(encoding="utf-8").splitlines():
+            if "=" in line:
+                key, value = line.split("=", 1)
+                legacy[key] = value
+        return {
+            "app_version": legacy.get("app_version", "unknown"),
+            "data_dir": legacy.get("data_dir", ""),
+            "managed_venv": legacy.get("managed_venv", ""),
+        }
+
+    return {}
+
+
 try:
-    cfg = json.loads(open(sys.argv[1]).read())
-    default_ws = cfg.get("agents", {}).get("defaults", {}).get("workspace") or "~/.openclaw/workspace"
-    for entry in cfg.get("agents", {}).get("list", []):
+    cfg = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+    agents_cfg = cfg.get("agents", {})
+    defaults = agents_cfg.get("defaults", {})
+    default_ws = os.path.expanduser(defaults.get("workspace") or "~/.openclaw/workspace")
+
+    entries = [{"id": "main", "workspace": default_ws}] + list(agents_cfg.get("list", []))
+    seen: set[str] = set()
+    for entry in entries:
         aid = entry.get("id")
-        if not aid: continue
-        ws = entry.get("workspace") or default_ws
-        ws = os.path.expanduser(ws)
-        manifest_path = os.path.join(ws, ".garmin-coach-agent", "manifest.txt")
-        if os.path.exists(manifest_path):
-            manifest = {}
-            for line in open(manifest_path).read().splitlines():
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    manifest[k] = v
-            print(f"{aid}\t{ws}\t{manifest.get('app_version', 'unknown')}\t{manifest.get('data_dir', '')}\t{manifest.get('managed_venv', '')}")
+        if not aid or aid in seen:
+            continue
+        seen.add(aid)
+        ws = os.path.expanduser(entry.get("workspace") or default_ws)
+        install_root = pathlib.Path(ws) / ".garmin-coach-agent"
+        manifest = load_manifest(install_root)
+        if not manifest:
+            continue
+        print(f"{aid}\t{ws}\t{manifest.get('app_version', 'unknown')}\t{manifest.get('data_dir', '')}\t{manifest.get('managed_venv', '')}")
 except Exception:
     pass
 PY

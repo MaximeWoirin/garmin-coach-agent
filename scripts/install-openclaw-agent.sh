@@ -15,17 +15,15 @@ PRESERVE_AGENT_CORE=0
 SKIP_PACKAGE_INSTALL=0
 QUIET=0
 TARGET_AGENT_ID=""
-NEW_AGENT_ID=""
-NEW_AGENT_NAME=""
 UPDATE_SKILLS_MODE="auto"
 GARMIN_SKILLS=()
 SELECTED_AGENT_ID=""
 SELECTED_AGENT_NAME=""
 SELECTED_AGENT_WORKSPACE=""
 SELECTED_AGENT_DIR=""
+SELECTED_AGENT_MODEL=""
 SELECTED_SKILLS_MODE=""
 SELECTED_SKILLS_CSV=""
-CREATE_AGENT_CONFIG=0
 PATCH_SKILLS_ALLOWLIST=0
 SKIP_SYSTEMD_SYNC=0
 SKIP_SYSTEMD_EXPORT=0
@@ -41,6 +39,34 @@ WEEKLY_PLANNING_TO=""
 WEEKLY_PLANNING_ACCOUNT=""
 WEEKLY_PLANNING_NAME=""
 WEEKLY_PLANNING_MESSAGE=""
+WEEKLY_PLANNING_MODEL=""
+INSTALL_MODE="install"
+COACH_CONFIG_PATH=""
+MANIFEST_PATH=""
+PREVIOUS_BACKUP_DIR=""
+PREVIOUS_WEEKLY_PLANNING_SESSION_KEY=""
+PREVIOUS_WEEKLY_PLANNING_TO=""
+PREVIOUS_WEEKLY_PLANNING_CHANNEL=""
+PREVIOUS_WEEKLY_PLANNING_ACCOUNT=""
+PREVIOUS_WEEKLY_PLANNING_TZ=""
+PREVIOUS_WEEKLY_PLANNING_SCHEDULE=""
+PREVIOUS_WEEKLY_PLANNING_MODEL=""
+PREVIOUS_WEEKLY_PLANNING_NAME=""
+INSTALL_APP_VERSION="unknown"
+INSTALL_GIT_COMMIT=""
+INSTALL_GIT_TAG=""
+INSTALL_GIT_SOURCE="local"
+INSTALL_GIT_DIRTY="false"
+FEATURE_PYTHON_RUNTIME=0
+FEATURE_AGENT_FILES=0
+FEATURE_DB_MIGRATED=0
+FEATURE_SYSTEMD_SYNC=0
+FEATURE_SYSTEMD_EXPORT=0
+FEATURE_WEEKLY_PLANNING=0
+DB_STATUS="not-run"
+LAST_SYNC_TIMER_NAME=""
+LAST_EXPORT_TIMER_NAME=""
+FIELD_SEP=$'\x1f'
 
 usage() {
   cat <<'EOF'
@@ -55,8 +81,6 @@ Options:
   --install-root DIR        Managed install dir for app snapshot + venv
   --python BIN              Python binary to use for venv creation
   --agent ID                Install into an existing OpenClaw agent
-  --new-agent ID            Create config entry for a new agent, then install into it
-  --agent-name NAME         Name to use when creating a new agent
   --update-skills MODE      auto|yes|no (patch skill allowlist when target agent is restricted)
   --sync-on-calendar SPEC   systemd OnCalendar spec for Garmin sync (default: daily)
   --export-on-calendar SPEC systemd OnCalendar spec for plan export (default: daily)
@@ -79,6 +103,8 @@ Options:
                             Cron job name override (default: weekly-planning-<agent-id>)
   --weekly-planning-message TEXT
                             Agent prompt override for weekly planning cron
+  --weekly-planning-model MODEL
+                            Model override for weekly planning cron
   --no-bootstrap            Do not install BOOTSTRAP.md
   --preserve-agent-core     Do not overwrite HEARTBEAT.md, IDENTITY.md, SOUL.md if they exist
   --skip-package-install    Copy files only; skip venv/package install
@@ -88,7 +114,7 @@ Options:
 
 Default behavior:
   - if a config is found and stdin/stdout are interactive, the script lists existing agents
-  - you can pick main, another existing agent, or create a new one
+  - you can pick main or another existing agent
   - if the chosen agent has a skill allowlist, the script can append Garmin skills to it
 
 What it installs:
@@ -99,6 +125,8 @@ What it installs:
   - systemd user timer  -> Garmin sync automatique (unless --skip-systemd-sync)
   - systemd user timer  -> export quotidien des plans du lendemain (unless --skip-systemd-export)
   - OpenClaw cron        -> weekly planning, when session/delivery context is provided
+  - persisted config     -> <install-root>/coach-config.json
+  - install manifest     -> <install-root>/manifest.json
 EOF
 }
 
@@ -347,6 +375,12 @@ write_systemd_runtime_env() {
   local backup_root="$3"
   local env_file="$INSTALL_ROOT/systemd/garmin-runtime-${safe_agent_id}.env"
 
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] install runtime env %s\n' "$env_file" >&2
+    printf '%s' "$env_file"
+    return
+  fi
+
   mkdir -p "$data_dir/tokens" "$INSTALL_ROOT/systemd"
   backup_if_exists "$env_file" "$backup_root"
 
@@ -366,6 +400,7 @@ install_systemd_sync_timer() {
   local env_file="$4"
   local service_name="garmin-coach-sync-${safe_agent_id}.service"
   local timer_name="garmin-coach-sync-${safe_agent_id}.timer"
+  LAST_SYNC_TIMER_NAME="$timer_name"
   local systemd_user_dir="$HOME_DIR/.config/systemd/user"
   local service_path="$systemd_user_dir/$service_name"
   local timer_path="$systemd_user_dir/$timer_name"
@@ -378,6 +413,7 @@ install_systemd_sync_timer() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '[dry-run] install systemd user service %s\n' "$service_path"
     printf '[dry-run] install systemd user timer %s (OnCalendar=%s)\n' "$timer_path" "$SYNC_ON_CALENDAR"
+    FEATURE_SYSTEMD_SYNC=1
     return
   fi
 
@@ -426,6 +462,7 @@ EOF
     log "Installed Garmin sync timer files, but systemctl --user is unavailable in this session."
     log "Enable later with: systemctl --user daemon-reload && systemctl --user enable --now $timer_name"
   fi
+  FEATURE_SYSTEMD_SYNC=1
 }
 
 install_systemd_export_timer() {
@@ -435,6 +472,7 @@ install_systemd_export_timer() {
   local env_file="$4"
   local service_name="garmin-coach-export-${safe_agent_id}.service"
   local timer_name="garmin-coach-export-${safe_agent_id}.timer"
+  LAST_EXPORT_TIMER_NAME="$timer_name"
   local systemd_user_dir="$HOME_DIR/.config/systemd/user"
   local helper_script="$INSTALL_ROOT/systemd/export-tomorrow-${safe_agent_id}.sh"
   local service_path="$systemd_user_dir/$service_name"
@@ -449,6 +487,7 @@ install_systemd_export_timer() {
     printf '[dry-run] install export helper %s\n' "$helper_script"
     printf '[dry-run] install systemd user service %s\n' "$service_path"
     printf '[dry-run] install systemd user timer %s (OnCalendar=%s)\n' "$timer_path" "$EXPORT_ON_CALENDAR"
+    FEATURE_SYSTEMD_EXPORT=1
     return
   fi
 
@@ -546,6 +585,7 @@ EOF
     log "Installed Garmin export timer files, but systemctl --user is unavailable in this session."
     log "Enable later with: systemctl --user daemon-reload && systemctl --user enable --now $timer_name"
   fi
+  FEATURE_SYSTEMD_EXPORT=1
 }
 
 config_exists() {
@@ -603,6 +643,7 @@ for agent_id in by_id:
 for agent_id in ordered_ids:
     entry = by_id[agent_id]
     name = entry.get("name") or ("Main Agent" if agent_id == "main" else agent_id)
+    model = entry.get("model") or defaults.get("model") or ""
     workspace = entry.get("workspace")
     if workspace:
         resolved_workspace = os.path.expanduser(workspace)
@@ -619,9 +660,10 @@ for agent_id in ordered_ids:
         skills_mode = "unrestricted"
         skills = []
     synthetic = "1" if entry.get("_synthetic") else "0"
-    print("\t".join([
+    print(chr(31).join([
         agent_id,
         name,
+        model,
         resolved_workspace,
         agent_dir,
         skills_mode,
@@ -633,13 +675,14 @@ PY
 
 select_existing_agent_by_id() {
   local wanted_id="$1"
-  local line agent_id name workspace agent_dir skills_mode skills_csv synthetic
+  local line agent_id name model workspace agent_dir skills_mode skills_csv synthetic
 
-  while IFS=$'\t' read -r agent_id name workspace agent_dir skills_mode skills_csv synthetic; do
+  while IFS="$FIELD_SEP" read -r agent_id name model workspace agent_dir skills_mode skills_csv synthetic; do
     [[ -z "$agent_id" ]] && continue
     if [[ "$agent_id" == "$wanted_id" ]]; then
       SELECTED_AGENT_ID="$agent_id"
       SELECTED_AGENT_NAME="$name"
+      SELECTED_AGENT_MODEL="$model"
       SELECTED_AGENT_WORKSPACE="$workspace"
       SELECTED_AGENT_DIR="$agent_dir"
       SELECTED_SKILLS_MODE="$skills_mode"
@@ -651,58 +694,14 @@ select_existing_agent_by_id() {
   return 1
 }
 
-configure_new_agent_target() {
-  local default_workspace="$1"
-  local default_agent_dir=""
-  local default_name=""
-
-  if [[ -z "$NEW_AGENT_ID" ]]; then
-    NEW_AGENT_ID="$(prompt_line 'Nouvel agent id' 'coach-garmin')"
-  fi
-  [[ "$NEW_AGENT_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die "Invalid agent id: $NEW_AGENT_ID"
-
-  default_name="$NEW_AGENT_NAME"
-  if [[ -z "$default_name" ]]; then
-    default_name="Garmin Coach"
-  fi
-  if is_tty; then
-    NEW_AGENT_NAME="$(prompt_line 'Nom affiché (optionnel)' "$default_name")"
-  elif [[ -z "$NEW_AGENT_NAME" ]]; then
-    NEW_AGENT_NAME="$default_name"
-  fi
-
-  if [[ -n "$WORKSPACE_DIR" ]]; then
-    SELECTED_AGENT_WORKSPACE="$WORKSPACE_DIR"
-  else
-    SELECTED_AGENT_WORKSPACE="${default_workspace%/}/$NEW_AGENT_ID"
-    if is_tty; then
-      SELECTED_AGENT_WORKSPACE="$(prompt_line 'Workspace agent' "$SELECTED_AGENT_WORKSPACE")"
-    fi
-  fi
-
-  default_agent_dir="$HOME_DIR/.openclaw/agents/$NEW_AGENT_ID/agent"
-  SELECTED_AGENT_DIR="$default_agent_dir"
-  if is_tty; then
-    SELECTED_AGENT_DIR="$(prompt_line 'Agent dir OpenClaw' "$SELECTED_AGENT_DIR")"
-  fi
-
-  SELECTED_AGENT_ID="$NEW_AGENT_ID"
-  SELECTED_AGENT_NAME="$NEW_AGENT_NAME"
-  SELECTED_SKILLS_MODE="unrestricted"
-  SELECTED_SKILLS_CSV=""
-  CREATE_AGENT_CONFIG=1
-}
-
 interactive_choose_target() {
-  local default_workspace="$1"
   local lines=()
-  local labels=()
-  local line agent_id name workspace agent_dir skills_mode skills_csv synthetic
+  local line agent_id name model workspace agent_dir skills_mode skills_csv synthetic
   local idx=1 choice="" skills_note=""
 
-  while IFS=$'\t' read -r agent_id name workspace agent_dir skills_mode skills_csv synthetic; do
+  while IFS="$FIELD_SEP" read -r agent_id name model workspace agent_dir skills_mode skills_csv synthetic; do
     [[ -z "$agent_id" ]] && continue
-    lines+=("$agent_id"$'\t'"$name"$'\t'"$workspace"$'\t'"$agent_dir"$'\t'"$skills_mode"$'\t'"$skills_csv"$'\t'"$synthetic")
+    lines+=("$agent_id""$FIELD_SEP""$name""$FIELD_SEP""$model""$FIELD_SEP""$workspace""$FIELD_SEP""$agent_dir""$FIELD_SEP""$skills_mode""$FIELD_SEP""$skills_csv""$FIELD_SEP""$synthetic")
     case "$skills_mode" in
       unrestricted) skills_note="skills: unrestricted" ;;
       agent) skills_note="skills: allowlist agent" ;;
@@ -710,11 +709,14 @@ interactive_choose_target() {
       *) skills_note="skills: unknown" ;;
     esac
     printf '%s) %s (%s)\n' "$idx" "$agent_id" "$workspace" >&2
-    printf '   %s\n' "$skills_note" >&2
+    if [[ -n "$model" ]]; then
+      printf '   %s | model: %s\n' "$skills_note" "$model" >&2
+    else
+      printf '   %s\n' "$skills_note" >&2
+    fi
     idx=$((idx + 1))
   done < <(list_agents_from_config)
 
-  printf '%s) Créer un nouvel agent\n' "$idx" >&2
   printf 'q) Quitter\n' >&2
 
   choice="$(prompt_line 'Choix' '1')"
@@ -724,9 +726,10 @@ interactive_choose_target() {
 
   if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice < idx )); then
     line="${lines[$((choice - 1))]}"
-    IFS=$'\t' read -r agent_id name workspace agent_dir skills_mode skills_csv synthetic <<< "$line"
+    IFS="$FIELD_SEP" read -r agent_id name model workspace agent_dir skills_mode skills_csv synthetic <<< "$line"
     SELECTED_AGENT_ID="$agent_id"
     SELECTED_AGENT_NAME="$name"
+    SELECTED_AGENT_MODEL="$model"
     SELECTED_AGENT_WORKSPACE="$workspace"
     SELECTED_AGENT_DIR="$agent_dir"
     SELECTED_SKILLS_MODE="$skills_mode"
@@ -734,11 +737,6 @@ interactive_choose_target() {
     if [[ -n "$WORKSPACE_DIR" ]]; then
       SELECTED_AGENT_WORKSPACE="$WORKSPACE_DIR"
     fi
-    return
-  fi
-
-  if [[ "$choice" == "$idx" ]]; then
-    configure_new_agent_target "$default_workspace"
     return
   fi
 
@@ -750,11 +748,6 @@ maybe_select_target_from_config() {
 
   default_workspace="$(get_default_workspace_from_config)"
 
-  if [[ -n "$NEW_AGENT_ID" ]]; then
-    configure_new_agent_target "$default_workspace"
-    return
-  fi
-
   if [[ -n "$TARGET_AGENT_ID" ]]; then
     select_existing_agent_by_id "$TARGET_AGENT_ID" || die "Unknown agent id: $TARGET_AGENT_ID"
     if [[ -n "$WORKSPACE_DIR" ]]; then
@@ -764,7 +757,7 @@ maybe_select_target_from_config() {
   fi
 
   if is_tty; then
-    interactive_choose_target "$default_workspace"
+    interactive_choose_target
     return
   fi
 
@@ -777,6 +770,7 @@ maybe_select_target_from_config() {
 
   SELECTED_AGENT_ID="main"
   SELECTED_AGENT_NAME="Main Agent"
+  SELECTED_AGENT_MODEL=""
   SELECTED_AGENT_WORKSPACE="${WORKSPACE_DIR:-$default_workspace}"
   SELECTED_AGENT_DIR="$HOME_DIR/.openclaw/agents/main/agent"
   SELECTED_SKILLS_MODE="unrestricted"
@@ -829,29 +823,16 @@ maybe_prompt_or_set_skill_patch() {
 }
 
 patch_config_for_target() {
-  local action=""
   local merged_skills_csv="$SELECTED_SKILLS_CSV"
 
-  if [[ "$CREATE_AGENT_CONFIG" -eq 0 && "$PATCH_SKILLS_ALLOWLIST" -eq 0 ]]; then
+  if [[ "$PATCH_SKILLS_ALLOWLIST" -eq 0 ]]; then
     return
   fi
 
   config_exists || die "Config not found: $CONFIG_PATH"
 
-  if [[ "$CREATE_AGENT_CONFIG" -eq 1 && "$PATCH_SKILLS_ALLOWLIST" -eq 1 ]]; then
-    action="create-and-update-skills"
-  elif [[ "$CREATE_AGENT_CONFIG" -eq 1 ]]; then
-    action="create"
-  else
-    action="update-skills"
-  fi
-
   CONFIG_PATH="$CONFIG_PATH" \
-  ACTION="$action" \
   AGENT_ID="$SELECTED_AGENT_ID" \
-  AGENT_NAME="$SELECTED_AGENT_NAME" \
-  AGENT_WORKSPACE="$SELECTED_AGENT_WORKSPACE" \
-  AGENT_DIR="$SELECTED_AGENT_DIR" \
   SKILLS_CSV="$merged_skills_csv" \
   DRY_RUN="$DRY_RUN" \
   python3 - <<'PY'
@@ -863,11 +844,7 @@ import shutil
 from datetime import datetime, timezone
 
 config_path = pathlib.Path(os.path.expanduser(os.environ["CONFIG_PATH"]))
-action = os.environ["ACTION"]
 agent_id = os.environ["AGENT_ID"]
-agent_name = os.environ.get("AGENT_NAME", "")
-agent_workspace = os.path.expanduser(os.environ["AGENT_WORKSPACE"])
-agent_dir = os.path.expanduser(os.environ["AGENT_DIR"])
 skills_csv = os.environ.get("SKILLS_CSV", "")
 dry_run = os.environ.get("DRY_RUN") == "1"
 
@@ -880,18 +857,10 @@ for item in entries:
         entry = item
         break
 if entry is None:
-    entry = {"id": agent_id}
-    entries.append(entry)
+    raise SystemExit(f"Agent not found in config: {agent_id}")
 
-if action in {"create", "create-and-update-skills"}:
-    entry["workspace"] = agent_workspace
-    entry["agentDir"] = agent_dir
-    if agent_name:
-        entry["name"] = agent_name
-
-if action in {"update-skills", "create-and-update-skills"}:
-    skills = [item for item in skills_csv.split(",") if item]
-    entry["skills"] = skills
+skills = [item for item in skills_csv.split(",") if item]
+entry["skills"] = skills
 
 if dry_run:
     print(f"[dry-run] would update config: {config_path}")
@@ -906,9 +875,158 @@ else:
 PY
 }
 
+resolve_install_source() {
+  local git_commit=""
+  local git_tag=""
+  local git_branch=""
+  local git_dirty="false"
+  local git_source="local"
+  local app_version="unknown"
+
+  if [[ -f "$REPO_DIR/pyproject.toml" ]]; then
+    app_version="$(python3 -c 'import tomllib, pathlib; print(tomllib.loads(pathlib.Path("'"$REPO_DIR"'/pyproject.toml").read_text())["project"]["version"])' 2>/dev/null || echo "unknown")"
+  fi
+
+  if command -v git >/dev/null 2>&1 && git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git_commit="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || true)"
+    git_tag="$(git -C "$REPO_DIR" describe --tags --exact-match 2>/dev/null || true)"
+    git_branch="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    if [[ -n "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null || true)" ]]; then
+      git_dirty="true"
+    fi
+
+    if [[ -n "$git_tag" ]]; then
+      git_source="tag"
+    elif [[ -n "$git_branch" && "$git_branch" != "HEAD" ]]; then
+      git_source="branch"
+    elif [[ -n "$git_commit" ]]; then
+      git_source="commit"
+    fi
+  fi
+
+  printf '%s%s%s%s%s%s%s%s%s' "$app_version" "$FIELD_SEP" "$git_commit" "$FIELD_SEP" "$git_tag" "$FIELD_SEP" "$git_source" "$FIELD_SEP" "$git_dirty"
+}
+
+load_existing_install_state() {
+  local loaded=""
+
+  [[ -n "$INSTALL_ROOT" ]] || return
+  COACH_CONFIG_PATH="$INSTALL_ROOT/coach-config.json"
+  MANIFEST_PATH="$INSTALL_ROOT/manifest.json"
+
+  loaded="$(COACH_CONFIG_PATH="$COACH_CONFIG_PATH" MANIFEST_PATH="$MANIFEST_PATH" python3 - <<'PY'
+from __future__ import annotations
+import json
+import os
+import pathlib
+
+manifest_path = pathlib.Path(os.path.expanduser(os.environ["MANIFEST_PATH"]))
+config_path = pathlib.Path(os.path.expanduser(os.environ["COACH_CONFIG_PATH"]))
+
+result = {
+    "manifest_exists": manifest_path.exists(),
+    "config_exists": config_path.exists(),
+    "backup_dir": "",
+    "weekly_session_key": "",
+    "weekly_to": "",
+    "weekly_channel": "",
+    "weekly_account": "",
+    "weekly_tz": "",
+    "weekly_schedule": "",
+    "weekly_model": "",
+    "weekly_name": "",
+}
+
+if manifest_path.exists():
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    result["backup_dir"] = manifest.get("backup", {}).get("last_backup_dir", "")
+else:
+    legacy_manifest = manifest_path.with_name("manifest.txt")
+    if legacy_manifest.exists():
+        legacy = {}
+        for line in legacy_manifest.read_text(encoding="utf-8").splitlines():
+            if "=" in line:
+                key, value = line.split("=", 1)
+                legacy[key] = value
+        result["backup_dir"] = legacy.get("backup_root", "")
+
+if config_path.exists():
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    weekly = config.get("weekly_planning", {})
+    delivery = weekly.get("delivery", {})
+    result["weekly_session_key"] = weekly.get("session_key", "")
+    result["weekly_to"] = delivery.get("to", "")
+    result["weekly_channel"] = delivery.get("channel", "")
+    result["weekly_account"] = delivery.get("account_id", "")
+    result["weekly_tz"] = weekly.get("timezone", "")
+    result["weekly_schedule"] = weekly.get("schedule", "")
+    result["weekly_model"] = weekly.get("model", "")
+    result["weekly_name"] = weekly.get("name", "")
+
+print(chr(31).join([
+    "1" if result["manifest_exists"] else "0",
+    "1" if result["config_exists"] else "0",
+    result["backup_dir"],
+    result["weekly_session_key"],
+    result["weekly_to"],
+    result["weekly_channel"],
+    result["weekly_account"],
+    result["weekly_tz"],
+    result["weekly_schedule"],
+    result["weekly_model"],
+    result["weekly_name"],
+]))
+PY
+)"
+
+  if [[ -n "$loaded" ]]; then
+    local manifest_exists config_exists
+    IFS="$FIELD_SEP" read -r manifest_exists config_exists PREVIOUS_BACKUP_DIR PREVIOUS_WEEKLY_PLANNING_SESSION_KEY PREVIOUS_WEEKLY_PLANNING_TO PREVIOUS_WEEKLY_PLANNING_CHANNEL PREVIOUS_WEEKLY_PLANNING_ACCOUNT PREVIOUS_WEEKLY_PLANNING_TZ PREVIOUS_WEEKLY_PLANNING_SCHEDULE PREVIOUS_WEEKLY_PLANNING_MODEL PREVIOUS_WEEKLY_PLANNING_NAME <<< "$loaded"
+    if [[ "$manifest_exists" == "1" && "$config_exists" == "1" ]]; then
+      INSTALL_MODE="update"
+    elif [[ "$manifest_exists" == "1" || "$config_exists" == "1" || -d "$INSTALL_ROOT/.venv" || -f "$INSTALL_ROOT/data/garmin_coach.db" ]]; then
+      INSTALL_MODE="repair"
+    else
+      INSTALL_MODE="install"
+    fi
+  fi
+}
+
 resolve_weekly_planning_defaults() {
   if [[ -z "$WEEKLY_PLANNING_NAME" ]]; then
-    WEEKLY_PLANNING_NAME="weekly-planning-$SELECTED_AGENT_ID"
+    WEEKLY_PLANNING_NAME="${PREVIOUS_WEEKLY_PLANNING_NAME:-weekly-planning-$SELECTED_AGENT_ID}"
+  fi
+
+  if [[ -z "$WEEKLY_PLANNING_MODEL" ]]; then
+    WEEKLY_PLANNING_MODEL="${PREVIOUS_WEEKLY_PLANNING_MODEL:-$SELECTED_AGENT_MODEL}"
+  fi
+
+  if [[ -z "$WEEKLY_PLANNING_TZ" || "$WEEKLY_PLANNING_TZ" == "UTC" ]]; then
+    if [[ -n "$PREVIOUS_WEEKLY_PLANNING_TZ" ]]; then
+      WEEKLY_PLANNING_TZ="$PREVIOUS_WEEKLY_PLANNING_TZ"
+    elif [[ -n "${TZ:-}" ]]; then
+      WEEKLY_PLANNING_TZ="$TZ"
+    fi
+  fi
+
+  if [[ "$WEEKLY_PLANNING_ON_CALENDAR" == "0 18 * * 0" && -n "$PREVIOUS_WEEKLY_PLANNING_SCHEDULE" ]]; then
+    WEEKLY_PLANNING_ON_CALENDAR="$PREVIOUS_WEEKLY_PLANNING_SCHEDULE"
+  fi
+
+  if [[ -z "$WEEKLY_PLANNING_SESSION_KEY" ]]; then
+    WEEKLY_PLANNING_SESSION_KEY="$PREVIOUS_WEEKLY_PLANNING_SESSION_KEY"
+  fi
+
+  if [[ -z "$WEEKLY_PLANNING_TO" ]]; then
+    WEEKLY_PLANNING_TO="$PREVIOUS_WEEKLY_PLANNING_TO"
+  fi
+
+  if [[ -z "$WEEKLY_PLANNING_CHANNEL" ]]; then
+    WEEKLY_PLANNING_CHANNEL="$PREVIOUS_WEEKLY_PLANNING_CHANNEL"
+  fi
+
+  if [[ -z "$WEEKLY_PLANNING_ACCOUNT" ]]; then
+    WEEKLY_PLANNING_ACCOUNT="$PREVIOUS_WEEKLY_PLANNING_ACCOUNT"
   fi
 
   if [[ -z "$WEEKLY_PLANNING_MESSAGE" ]]; then
@@ -949,11 +1067,14 @@ prompt_weekly_planning_if_needed() {
 
   WEEKLY_PLANNING_ON_CALENDAR="$(prompt_line "Expression cron pour le weekly planning" "$WEEKLY_PLANNING_ON_CALENDAR")"
   WEEKLY_PLANNING_TZ="$(prompt_line "Timezone IANA du weekly planning" "$WEEKLY_PLANNING_TZ")"
+  WEEKLY_PLANNING_MODEL="$(prompt_line "Model du weekly planning" "$WEEKLY_PLANNING_MODEL")"
 }
 
 create_or_update_weekly_planning_cron() {
   local existing_id=""
   local -a cron_cmd=()
+
+  resolve_weekly_planning_defaults
 
   if [[ "$SKIP_WEEKLY_PLANNING_CRON" -eq 1 ]]; then
     log "Skipping weekly planning cron by request."
@@ -965,7 +1086,6 @@ create_or_update_weekly_planning_cron() {
     return
   fi
 
-  resolve_weekly_planning_defaults
   prompt_weekly_planning_if_needed
 
   if [[ "$SKIP_WEEKLY_PLANNING_CRON" -eq 1 ]]; then
@@ -1012,6 +1132,10 @@ PY
     --light-context
   )
 
+  if [[ -n "$WEEKLY_PLANNING_MODEL" ]]; then
+    cron_cmd+=(--model "$WEEKLY_PLANNING_MODEL")
+  fi
+
   if [[ -n "$WEEKLY_PLANNING_TZ" ]]; then
     cron_cmd+=(--tz "$WEEKLY_PLANNING_TZ")
   fi
@@ -1034,6 +1158,7 @@ PY
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '[dry-run] create/update weekly planning cron: %s\n' "$WEEKLY_PLANNING_NAME"
+    FEATURE_WEEKLY_PLANNING=1
     return
   fi
 
@@ -1044,7 +1169,185 @@ PY
     log "Creating weekly planning cron: $WEEKLY_PLANNING_NAME"
   fi
 
-  "${cron_cmd[@]}" || log "Warning: Failed to create weekly planning cron"
+  if "${cron_cmd[@]}"; then
+    FEATURE_WEEKLY_PLANNING=1
+  else
+    log "Warning: Failed to create weekly planning cron"
+  fi
+}
+
+write_persisted_coach_config() {
+  local backup_root="$1"
+
+  [[ -n "$COACH_CONFIG_PATH" ]] || return
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] write coach config %s\n' "$COACH_CONFIG_PATH"
+    return
+  fi
+
+  mkdir -p "$(dirname "$COACH_CONFIG_PATH")"
+  backup_if_exists "$COACH_CONFIG_PATH" "$backup_root"
+
+  COACH_CONFIG_PATH="$COACH_CONFIG_PATH" \
+  SELECTED_AGENT_ID="$SELECTED_AGENT_ID" \
+  WEEKLY_PLANNING_NAME="$WEEKLY_PLANNING_NAME" \
+  WEEKLY_PLANNING_MODEL="$WEEKLY_PLANNING_MODEL" \
+  WEEKLY_PLANNING_TZ="$WEEKLY_PLANNING_TZ" \
+  WEEKLY_PLANNING_ON_CALENDAR="$WEEKLY_PLANNING_ON_CALENDAR" \
+  WEEKLY_PLANNING_SESSION_KEY="$WEEKLY_PLANNING_SESSION_KEY" \
+  WEEKLY_PLANNING_TO="$WEEKLY_PLANNING_TO" \
+  WEEKLY_PLANNING_CHANNEL="$WEEKLY_PLANNING_CHANNEL" \
+  WEEKLY_PLANNING_ACCOUNT="$WEEKLY_PLANNING_ACCOUNT" \
+  FEATURE_SYSTEMD_SYNC="$FEATURE_SYSTEMD_SYNC" \
+  FEATURE_SYSTEMD_EXPORT="$FEATURE_SYSTEMD_EXPORT" \
+  FEATURE_WEEKLY_PLANNING="$FEATURE_WEEKLY_PLANNING" \
+  python3 - <<'PY'
+from __future__ import annotations
+import json
+import os
+import pathlib
+
+path = pathlib.Path(os.environ["COACH_CONFIG_PATH"])
+delivery = {}
+if os.environ.get("WEEKLY_PLANNING_TO"):
+    delivery["to"] = os.environ["WEEKLY_PLANNING_TO"]
+if os.environ.get("WEEKLY_PLANNING_CHANNEL"):
+    delivery["channel"] = os.environ["WEEKLY_PLANNING_CHANNEL"]
+if os.environ.get("WEEKLY_PLANNING_ACCOUNT"):
+    delivery["account_id"] = os.environ["WEEKLY_PLANNING_ACCOUNT"]
+
+config = {
+    "schema_version": 1,
+    "agent_id": os.environ["SELECTED_AGENT_ID"],
+    "weekly_planning": {
+        "enabled": os.environ.get("FEATURE_WEEKLY_PLANNING") == "1",
+        "name": os.environ.get("WEEKLY_PLANNING_NAME", ""),
+        "model": os.environ.get("WEEKLY_PLANNING_MODEL", ""),
+        "timezone": os.environ.get("WEEKLY_PLANNING_TZ", ""),
+        "schedule": os.environ.get("WEEKLY_PLANNING_ON_CALENDAR", ""),
+        "session_key": os.environ.get("WEEKLY_PLANNING_SESSION_KEY", ""),
+        "delivery": delivery,
+    },
+    "garmin": {
+        "sync_enabled": os.environ.get("FEATURE_SYSTEMD_SYNC") == "1",
+        "export_tomorrow_enabled": os.environ.get("FEATURE_SYSTEMD_EXPORT") == "1",
+    },
+}
+
+path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+write_manifest() {
+  local ts="$1"
+  local backup_root="$2"
+  local app_version git_commit git_tag git_source git_dirty
+
+  [[ -n "$MANIFEST_PATH" ]] || return
+  IFS="$FIELD_SEP" read -r app_version git_commit git_tag git_source git_dirty <<< "$(resolve_install_source)"
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] write manifest %s\n' "$MANIFEST_PATH"
+    return
+  fi
+
+  mkdir -p "$(dirname "$MANIFEST_PATH")"
+  backup_if_exists "$MANIFEST_PATH" "$backup_root"
+
+  MANIFEST_PATH="$MANIFEST_PATH" \
+  APP_VERSION="$app_version" \
+  GIT_COMMIT="$git_commit" \
+  GIT_TAG="$git_tag" \
+  GIT_SOURCE="$git_source" \
+  GIT_DIRTY="$git_dirty" \
+  SELECTED_AGENT_ID="$SELECTED_AGENT_ID" \
+  CONFIG_PATH="$CONFIG_PATH" \
+  WORKSPACE_DIR="$WORKSPACE_DIR" \
+  INSTALL_ROOT="$INSTALL_ROOT" \
+  DATA_DIR="$INSTALL_ROOT/data" \
+  MANAGED_VENV="$INSTALL_ROOT/.venv/bin/python" \
+  FEATURE_PYTHON_RUNTIME="$FEATURE_PYTHON_RUNTIME" \
+  FEATURE_AGENT_FILES="$FEATURE_AGENT_FILES" \
+  FEATURE_DB_MIGRATED="$FEATURE_DB_MIGRATED" \
+  FEATURE_SYSTEMD_SYNC="$FEATURE_SYSTEMD_SYNC" \
+  FEATURE_SYSTEMD_EXPORT="$FEATURE_SYSTEMD_EXPORT" \
+  FEATURE_WEEKLY_PLANNING="$FEATURE_WEEKLY_PLANNING" \
+  BACKUP_ROOT="$backup_root" \
+  INSTALLED_AT="$ts" \
+  INSTALL_MODE="$INSTALL_MODE" \
+  python3 - <<'PY'
+from __future__ import annotations
+import json
+import os
+import pathlib
+
+path = pathlib.Path(os.environ["MANIFEST_PATH"])
+manifest = {
+    "schema_version": 1,
+    "install_mode": os.environ["INSTALL_MODE"],
+    "app_version": os.environ.get("APP_VERSION", "unknown"),
+    "git": {
+        "tag": os.environ.get("GIT_TAG", ""),
+        "commit": os.environ.get("GIT_COMMIT", ""),
+        "source": os.environ.get("GIT_SOURCE", "local"),
+        "dirty": os.environ.get("GIT_DIRTY", "false") == "true",
+    },
+    "paths": {
+        "workspace_dir": os.environ["WORKSPACE_DIR"],
+        "install_root": os.environ["INSTALL_ROOT"],
+        "data_dir": os.environ["DATA_DIR"],
+        "managed_venv": os.environ["MANAGED_VENV"],
+    },
+    "target": {
+        "agent_id": os.environ["SELECTED_AGENT_ID"],
+        "openclaw_config_path": os.environ["CONFIG_PATH"],
+    },
+    "features": {
+        "python_runtime": os.environ.get("FEATURE_PYTHON_RUNTIME") == "1",
+        "agent_files": os.environ.get("FEATURE_AGENT_FILES") == "1",
+        "db_migrated": os.environ.get("FEATURE_DB_MIGRATED") == "1",
+        "systemd_sync": os.environ.get("FEATURE_SYSTEMD_SYNC") == "1",
+        "systemd_export": os.environ.get("FEATURE_SYSTEMD_EXPORT") == "1",
+        "weekly_planning_cron": os.environ.get("FEATURE_WEEKLY_PLANNING") == "1",
+    },
+    "backup": {
+        "last_backup_dir": os.environ["BACKUP_ROOT"],
+    },
+    "installed_at": os.environ["INSTALLED_AT"],
+}
+path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+print_install_summary() {
+  log "Install done."
+  log "Mode:           $INSTALL_MODE"
+  log "Agent:          $SELECTED_AGENT_ID"
+  log "Version:        $INSTALL_APP_VERSION"
+  log "Source:         $INSTALL_GIT_SOURCE${INSTALL_GIT_TAG:+ ($INSTALL_GIT_TAG)}"
+  log "Workspace:      $WORKSPACE_DIR"
+  log "Install root:   $INSTALL_ROOT"
+  log "DB status:      $DB_STATUS"
+  log "Config:         $COACH_CONFIG_PATH"
+  log "Manifest:       $MANIFEST_PATH"
+  log "Backup root:    $1"
+  log "Managed bin dir: $INSTALL_ROOT/.venv/bin"
+  if [[ "$FEATURE_SYSTEMD_SYNC" -eq 1 ]]; then
+    log "Systemd sync:   ${LAST_SYNC_TIMER_NAME:-enabled}"
+  else
+    log "Systemd sync:   skipped"
+  fi
+  if [[ "$FEATURE_SYSTEMD_EXPORT" -eq 1 ]]; then
+    log "Systemd export: ${LAST_EXPORT_TIMER_NAME:-enabled}"
+  else
+    log "Systemd export: skipped"
+  fi
+  if [[ "$FEATURE_WEEKLY_PLANNING" -eq 1 ]]; then
+    log "Weekly cron:    $WEEKLY_PLANNING_NAME"
+  else
+    log "Weekly cron:    skipped"
+  fi
 }
 
 main() {
@@ -1068,14 +1371,6 @@ main() {
         ;;
       --agent)
         TARGET_AGENT_ID="$2"
-        shift 2
-        ;;
-      --new-agent)
-        NEW_AGENT_ID="$2"
-        shift 2
-        ;;
-      --agent-name)
-        NEW_AGENT_NAME="$2"
         shift 2
         ;;
       --update-skills)
@@ -1138,6 +1433,10 @@ main() {
         WEEKLY_PLANNING_MESSAGE="$2"
         shift 2
         ;;
+      --weekly-planning-model)
+        WEEKLY_PLANNING_MODEL="$2"
+        shift 2
+        ;;
       --no-bootstrap)
         WITH_BOOTSTRAP=0
         shift
@@ -1162,19 +1461,20 @@ main() {
         usage
         exit 0
         ;;
+      --new-agent|--agent-name)
+        die "Creating a new OpenClaw agent is no longer supported by this installer. Choose --agent main or an existing agent id."
+        ;;
       *)
         die "Unknown option: $1"
         ;;
     esac
   done
 
-  [[ -n "$TARGET_AGENT_ID" && -n "$NEW_AGENT_ID" ]] && die "Use either --agent or --new-agent, not both"
-
   load_garmin_skills
 
   if ! config_exists; then
-    if [[ -n "$TARGET_AGENT_ID" || -n "$NEW_AGENT_ID" ]]; then
-      die "Cannot use --agent or --new-agent because OpenClaw config was not found at $CONFIG_PATH."
+    if [[ -n "$TARGET_AGENT_ID" ]]; then
+      die "Cannot use --agent because OpenClaw config was not found at $CONFIG_PATH."
     fi
     log "Warning: OpenClaw configuration file not found at: $CONFIG_PATH"
     if [[ -z "$WORKSPACE_DIR" ]]; then
@@ -1191,16 +1491,17 @@ main() {
     fi
     SELECTED_AGENT_ID="main"
     SELECTED_AGENT_NAME="Main Agent"
+    SELECTED_AGENT_MODEL=""
     SELECTED_AGENT_WORKSPACE="$WORKSPACE_DIR"
     SELECTED_AGENT_DIR="$HOME_DIR/.openclaw/agents/main/agent"
     SELECTED_SKILLS_MODE="unrestricted"
     SELECTED_SKILLS_CSV=""
-    CREATE_AGENT_CONFIG=0
     PATCH_SKILLS_ALLOWLIST=0
   else
-    if [[ -n "$WORKSPACE_DIR" && -z "$TARGET_AGENT_ID" && -z "$NEW_AGENT_ID" && ! is_tty ]]; then
+    if [[ -n "$WORKSPACE_DIR" && -z "$TARGET_AGENT_ID" && ! is_tty ]]; then
       SELECTED_AGENT_ID="main"
       SELECTED_AGENT_NAME="Main Agent"
+      SELECTED_AGENT_MODEL=""
       SELECTED_AGENT_WORKSPACE="$WORKSPACE_DIR"
       SELECTED_AGENT_DIR="$HOME_DIR/.openclaw/agents/main/agent"
       SELECTED_SKILLS_MODE="unrestricted"
@@ -1215,6 +1516,7 @@ main() {
   if [[ -z "$INSTALL_ROOT" ]]; then
     INSTALL_ROOT="$WORKSPACE_DIR/.garmin-coach-agent"
   fi
+  load_existing_install_state
 
   maybe_prompt_or_set_skill_patch
   patch_config_for_target
@@ -1227,6 +1529,8 @@ main() {
   managed_python="$(choose_python)"
   safe_agent_id="${SELECTED_AGENT_ID//[^A-Za-z0-9_.-]/-}"
 
+  IFS="$FIELD_SEP" read -r INSTALL_APP_VERSION INSTALL_GIT_COMMIT INSTALL_GIT_TAG INSTALL_GIT_SOURCE INSTALL_GIT_DIRTY <<< "$(resolve_install_source)"
+
   log "Agent:          $SELECTED_AGENT_ID"
   log "Workspace:      $WORKSPACE_DIR"
   log "Install root:   $INSTALL_ROOT"
@@ -1236,9 +1540,6 @@ main() {
   if [[ "$PATCH_SKILLS_ALLOWLIST" -eq 1 ]]; then
     log "Skills config:  patched allowlist for $SELECTED_AGENT_ID"
   fi
-  if [[ "$CREATE_AGENT_CONFIG" -eq 1 ]]; then
-    log "Agent config:   created/updated in $CONFIG_PATH"
-  fi
 
   if [[ "$DRY_RUN" -eq 0 ]]; then
     mkdir -p "$WORKSPACE_DIR" "$INSTALL_ROOT" "$backup_root" "$data_dir/tokens"
@@ -1246,6 +1547,9 @@ main() {
 
   sync_app_snapshot "$app_dir"
   create_venv_and_install "$managed_python" "$INSTALL_ROOT/.venv" "$app_dir"
+  if [[ "$DRY_RUN" -eq 0 && -x "$INSTALL_ROOT/.venv/bin/python" ]]; then
+    FEATURE_PYTHON_RUNTIME=1
+  fi
 
   local root_files=(AGENTS.md TOOLS.md)
   if [[ "$WITH_BOOTSTRAP" -eq 1 ]]; then
@@ -1268,6 +1572,7 @@ main() {
 
   copy_tree_files_if_exists "$REPO_DIR/agent/playbooks" "$WORKSPACE_DIR/playbooks" "$backup_root"
   copy_tree_files "$REPO_DIR/agent/skills" "$WORKSPACE_DIR/skills" "$backup_root"
+  FEATURE_AGENT_FILES=1
 
   local rewrite_targets=("$WORKSPACE_DIR/TOOLS.md" "$WORKSPACE_DIR/skills")
   if [[ "$WITH_BOOTSTRAP" -eq 1 ]]; then
@@ -1311,36 +1616,56 @@ install_root=$INSTALL_ROOT
 data_dir=$data_dir
 managed_python=$managed_python
 managed_venv=$INSTALL_ROOT/.venv/bin/python
+backup_root=$backup_root
 EOF
   fi
 
   if [[ "$DRY_RUN" -eq 0 && -x "$INSTALL_ROOT/.venv/bin/python" ]]; then
     log "Running database migrations..."
-    GARMIN_COACH_DB="$data_dir/garmin_coach.db" "$INSTALL_ROOT/.venv/bin/python" - <<'EOF'
+    if migration_output="$(GARMIN_COACH_DB="$data_dir/garmin_coach.db" "$INSTALL_ROOT/.venv/bin/python" - <<'EOF'
 import sys
 try:
     from garmin_coach.db import run_migrations, get_connection
     conn = get_connection()
     applied = run_migrations(conn)
     if applied:
-        print(f"Migrations applied successfully: {', '.join(applied)}")
+        print(f"MIGRATED:{','.join(applied)}")
     else:
-        print("Database schema is up to date.")
+        print("UP_TO_DATE")
     conn.close()
 except Exception as e:
     print(f"Error during migrations: {e}", file=sys.stderr)
     sys.exit(1)
 EOF
+)"; then
+      printf '%s\n' "$migration_output"
+      FEATURE_DB_MIGRATED=1
+      if [[ "$migration_output" == MIGRATED:* ]]; then
+        DB_STATUS="migrated"
+      else
+        DB_STATUS="up-to-date"
+      fi
+    else
+      DB_STATUS="failed"
+      exit 1
+    fi
   elif [[ "$DRY_RUN" -eq 1 ]]; then
     printf '[dry-run] run database migrations\n'
+    DB_STATUS="dry-run"
+  else
+    DB_STATUS="skipped"
   fi
+
+  runtime_env_file="$(write_systemd_runtime_env "$safe_agent_id" "$data_dir" "$backup_root")"
+  install_systemd_sync_timer "$safe_agent_id" "$INSTALL_ROOT/.venv/bin/python" "$backup_root" "$runtime_env_file"
+  install_systemd_export_timer "$safe_agent_id" "$INSTALL_ROOT/.venv/bin/python" "$backup_root" "$runtime_env_file"
 
   create_or_update_weekly_planning_cron
 
-  log "Install done."
-  log "Managed bin dir: $INSTALL_ROOT/.venv/bin"
-  log "Agent files:     $WORKSPACE_DIR"
-  log "Skills:          $WORKSPACE_DIR/skills"
+  write_persisted_coach_config "$backup_root"
+  write_manifest "$ts" "$backup_root"
+
+  print_install_summary "$backup_root"
 }
 
 main "$@"
