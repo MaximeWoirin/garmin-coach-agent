@@ -147,6 +147,14 @@ Objectif :
 
 ## Décisions retenues pour le nouvel installateur
 
+### 0. Point d'entrée unique
+
+Le repo doit converger vers un seul point d'entrée d'installation :
+- `install-openclaw-agent.sh`
+
+Le flux update ne doit plus vivre dans un script séparé avec sa propre logique.
+Si on garde un jour un alias de confort, il doit rester un wrapper trivial sans logique métier.
+
 ### 1. Cible d'installation
 
 Le nouvel installateur ne crée plus d'agent OpenClaw.
@@ -466,5 +474,5 @@ Pour cette passe, on ne cherche pas à faire :
 
 1. figer le schéma exact de la config métier persistée
 2. figer le schéma exact du manifest technique
-3. implémenter le flux install/update/repair dans le script
+3. implémenter / consolider le flux install/update/repair dans ce point d'entrée unique
 4. brancher ensuite le téléchargement / l'usage des artefacts de release dans l'installeur

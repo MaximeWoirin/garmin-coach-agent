@@ -14,6 +14,7 @@ WITH_BOOTSTRAP=1
 PRESERVE_AGENT_CORE=0
 SKIP_PACKAGE_INSTALL=0
 QUIET=0
+REQUESTED_INSTALL_MODE="auto"
 TARGET_AGENT_ID=""
 UPDATE_SKILLS_MODE="auto"
 GARMIN_SKILLS=()
@@ -76,6 +77,7 @@ Usage:
   scripts/install-openclaw-agent.sh [options]
 
 Options:
+  --mode MODE               auto|install|update|repair (default: auto)
   --config PATH             OpenClaw config path (default: ~/.openclaw/openclaw.json)
   --workspace DIR           Force workspace target, skip agent auto-selection
   --install-root DIR        Managed install dir for app snapshot + venv
@@ -113,6 +115,8 @@ Options:
   -h, --help                Show help
 
 Default behavior:
+  - this is the single entrypoint for install/update/repair
+  - by default it auto-detects whether the target needs install, update, or repair
   - if a config is found and stdin/stdout are interactive, the script lists existing agents
   - you can pick main or another existing agent
   - if the chosen agent has a skill allowlist, the script can append Garmin skills to it
@@ -919,6 +923,7 @@ resolve_install_source() {
 
 load_existing_install_state() {
   local loaded=""
+  local detected_mode="install"
 
   [[ -n "$INSTALL_ROOT" ]] || return
   COACH_CONFIG_PATH="$INSTALL_ROOT/coach-config.json"
@@ -993,13 +998,17 @@ PY
     local manifest_exists config_exists
     IFS="$FIELD_SEP" read -r manifest_exists config_exists PREVIOUS_BACKUP_DIR PREVIOUS_WEEKLY_PLANNING_SESSION_KEY PREVIOUS_WEEKLY_PLANNING_TO PREVIOUS_WEEKLY_PLANNING_CHANNEL PREVIOUS_WEEKLY_PLANNING_ACCOUNT PREVIOUS_WEEKLY_PLANNING_TZ PREVIOUS_WEEKLY_PLANNING_SCHEDULE PREVIOUS_WEEKLY_PLANNING_MODEL PREVIOUS_WEEKLY_PLANNING_NAME <<< "$loaded"
     if [[ "$manifest_exists" == "1" && "$config_exists" == "1" ]]; then
-      INSTALL_MODE="update"
+      detected_mode="update"
     elif [[ "$manifest_exists" == "1" || "$config_exists" == "1" || -d "$INSTALL_ROOT/.venv" || -f "$INSTALL_ROOT/data/garmin_coach.db" ]]; then
-      INSTALL_MODE="repair"
-    else
-      INSTALL_MODE="install"
+      detected_mode="repair"
     fi
   fi
+
+  if [[ "$REQUESTED_INSTALL_MODE" != "auto" && "$REQUESTED_INSTALL_MODE" != "$detected_mode" ]]; then
+    die "Requested --mode $REQUESTED_INSTALL_MODE but detected $detected_mode for $INSTALL_ROOT. Re-run with --mode $detected_mode or omit --mode."
+  fi
+
+  INSTALL_MODE="$detected_mode"
 }
 
 resolve_weekly_planning_defaults() {
@@ -1384,6 +1393,14 @@ main() {
     case "$1" in
       --config)
         CONFIG_PATH="$2"
+        shift 2
+        ;;
+      --mode)
+        REQUESTED_INSTALL_MODE="$2"
+        case "$REQUESTED_INSTALL_MODE" in
+          auto|install|update|repair) ;;
+          *) die "Invalid --mode: $REQUESTED_INSTALL_MODE (expected auto|install|update|repair)" ;;
+        esac
         shift 2
         ;;
       --workspace)

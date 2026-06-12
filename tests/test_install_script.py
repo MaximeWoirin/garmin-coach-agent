@@ -162,6 +162,22 @@ def test_install_script_preserves_existing_weekly_settings_on_update(tmp_path: P
     assert "Mode:           update" in second.stdout
 
 
+def test_install_script_accepts_explicit_update_mode_when_state_matches(tmp_path: Path) -> None:
+    first = _run_installer(tmp_path)
+    assert first.returncode == 0, first.stderr
+
+    second = _run_installer(tmp_path, "--mode", "update")
+    assert second.returncode == 0, second.stderr
+    assert "Mode:           update" in second.stdout
+
+
+def test_install_script_rejects_mode_mismatch(tmp_path: Path) -> None:
+    result = _run_installer(tmp_path, "--mode", "update")
+
+    assert result.returncode != 0
+    assert "Requested --mode update but detected install" in result.stderr
+
+
 def test_install_script_keeps_existing_weekly_cron_on_edit_failure(tmp_path: Path) -> None:
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
