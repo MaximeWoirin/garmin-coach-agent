@@ -36,6 +36,10 @@ Pour installer les fichiers agent + skills dans OpenClaw :
 ./scripts/install-openclaw-agent.sh
 ```
 
+Le fichier shell est maintenant un bootstrap fin :
+- `scripts/install-openclaw-agent.sh` résout Python puis délègue
+- la logique d'installation vit dans `python -m garmin_coach.install_openclaw_agent`
+
 Par défaut, le script devient interactif :
 - il lit `~/.openclaw/openclaw.json`
 - il détecte les agents déjà configurés
