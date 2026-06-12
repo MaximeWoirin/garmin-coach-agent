@@ -29,7 +29,7 @@ Options:
   --python BIN              Python binary to use for venv creation
   --agent ID                Install into an existing OpenClaw agent
   --update-skills MODE      auto|yes|no (patch skill allowlist when target agent is restricted)
-  --sync-on-calendar SPEC   systemd OnCalendar spec for Garmin sync (default: daily)
+  --sync-on-calendar SPEC   systemd OnCalendar spec for Garmin sync (default: hourly)
   --export-on-calendar SPEC systemd OnCalendar spec for plan export (default: daily)
   --sync-lookback-days N    lookback passed to sync-garmin (default: 3)
   --skip-systemd-sync       Do not install the Garmin sync systemd user timer
@@ -101,6 +101,8 @@ ENTRYPOINT_COMMANDS = [
     "get-current-plan",
     "get-fitness-state",
     "get-goals",
+    "get-pending-debriefs",
+    "save-activity-debrief",
     "set-constraint-status",
     "set-plan-session-status",
     "set-plan-status",
@@ -131,7 +133,7 @@ class InstallOptions:
     skip_systemd_sync: bool = False
     skip_systemd_export: bool = False
     skip_weekly_planning_cron: bool = False
-    sync_on_calendar: str = "daily"
+    sync_on_calendar: str = "hourly"
     export_on_calendar: str = "daily"
     sync_lookback_days: int = 3
     weekly_planning_on_calendar: str = "0 18 * * 0"

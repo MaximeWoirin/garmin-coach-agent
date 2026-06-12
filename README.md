@@ -58,7 +58,7 @@ Le script :
 - copie les playbooks dans `playbooks/` si le dossier existe dans le repo
 - copie les skills dans `skills/`
 - crée un runtime Python managé dans `<workspace>/.garmin-coach-agent/.venv`
-- installe un timer `systemd --user` pour la sync Garmin automatique (par défaut `OnCalendar=daily`)
+- installe un timer `systemd --user` pour la sync Garmin automatique (par défaut `OnCalendar=hourly`)
 - installe un timer `systemd --user` pour exporter chaque jour vers Garmin les séances prévues demain
 - peut créer / mettre à jour un cron OpenClaw de weekly planning si un `session-key` ou une delivery explicite est fourni(e)
 - réécrit les commandes des skills pour pointer vers ce runtime

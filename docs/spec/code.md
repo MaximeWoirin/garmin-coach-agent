@@ -33,7 +33,9 @@ On sépare clairement :
 ├── migrations/
 │   ├── 0001_init.sql
 │   ├── 0002_add_sync_runs.sql
-│   └── 0003_plan_session_status.sql
+│   ├── 0003_plan_session_status.sql
+│   ├── 0004_add_session_payload_json.sql
+│   └── 0005_activity_debriefs.sql
 ├── docs/
 │   └── spec/
 │       ├── README.md
@@ -69,6 +71,8 @@ On sépare clairement :
 │   ├── get-goals
 │   ├── get-constraints
 │   ├── get-current-plan
+│   ├── get-pending-debriefs
+│   ├── save-activity-debrief
 │   ├── create-goal
 │   ├── create-plan-draft
 │   ├── create-plan-session
@@ -85,6 +89,12 @@ On sépare clairement :
     ├── enums.py
     ├── jsonio.py
     ├── create_goal.py
+    ├── get_pending_debriefs.py
+    ├── save_activity_debrief.py
+    ├── debriefs/
+    │   ├── __init__.py
+    │   ├── read.py
+    │   └── write.py
     ├── garmin/
     │   ├── __init__.py
     │   ├── auth.py

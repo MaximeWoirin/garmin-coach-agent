@@ -59,6 +59,16 @@ def test_get_goals_main(seeded_db: Path) -> None:
             assert exc_info.value.code == 0
 
 
+def test_get_pending_debriefs_main(seeded_db: Path) -> None:
+    """Test get_pending_debriefs CLI."""
+    with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):
+        with patch("sys.argv", ["get_pending_debriefs", "--lookback-hours", "48"]):
+            from garmin_coach.get_pending_debriefs import main
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+
+
 def test_create_constraint_main(seeded_db: Path) -> None:
     """Test create_constraint CLI."""
     with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):
@@ -100,6 +110,22 @@ def test_create_plan_draft_main(seeded_db: Path) -> None:
             "--dry-run",
         ]):
             from garmin_coach.create_plan_draft import main
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+
+
+def test_save_activity_debrief_main(seeded_db: Path) -> None:
+    """Test save_activity_debrief CLI."""
+    with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):
+        with patch("sys.argv", [
+            "save_activity_debrief",
+            "--activity-id", "1",
+            "--rpe", "7",
+            "--note", "Bonne séance",
+            "--dry-run",
+        ]):
+            from garmin_coach.save_activity_debrief import main
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 0

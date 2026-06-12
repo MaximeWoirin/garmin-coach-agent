@@ -90,6 +90,12 @@ def seeded_db(tmp_db: Path) -> Path:
            VALUES (2, 'garmin', 'ext_002', 'cycling', 'Afternoon Ride', '2026-06-04T15:00:00', 3600, 20000, 500)"""
     )
 
+    # Match plan ↔ activité
+    conn.execute(
+        """INSERT INTO plan_activity_matches (id, plan_session_id, activity_id, match_type, confidence)
+           VALUES (1, 1, 1, 'inferred', 0.9)"""
+    )
+
     # Daily metrics
     conn.execute(
         """INSERT INTO daily_metrics (id, source, metric_date, steps, resting_hr, stress_avg, body_battery_end, intensity_minutes)
