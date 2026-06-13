@@ -36,11 +36,22 @@ Pour installer les fichiers agent + skills dans OpenClaw :
 ./scripts/install-openclaw-agent.sh
 ```
 
+Le fichier shell est maintenant un bootstrap fin :
+- `scripts/install-openclaw-agent.sh` résout Python puis délègue
+- la logique d'installation vit dans `python -m garmin_coach.install_openclaw_agent`
+
 Par défaut, le script devient interactif :
 - il lit `~/.openclaw/openclaw.json`
 - il détecte les agents déjà configurés
-- il propose d’installer sur `main`, sur un agent existant, ou sur un nouvel agent
+- il propose d’installer sur `main` ou sur un agent existant
 - si l’agent cible a une allowlist de skills, il propose d’y ajouter les skills Garmin
+
+Le même script sert pour les trois cas :
+- `install` sur une cible vierge
+- `update` sur une installation saine déjà présente
+- `repair` quand l’état détecté est partiel ou incohérent
+
+Par défaut il auto-détecte le mode. On peut aussi passer `--mode install|update|repair` comme garde-fou explicite.
 
 Le script :
 - copie les fichiers `agent/*` dans le workspace de l’agent cible
@@ -52,14 +63,14 @@ Le script :
 - peut créer / mettre à jour un cron OpenClaw de weekly planning si un `session-key` ou une delivery explicite est fourni(e)
 - réécrit les commandes des skills pour pointer vers ce runtime
 - sauvegarde les fichiers remplacés dans `.garmin-coach-agent/backups/<timestamp>/`
-- sauvegarde aussi la config OpenClaw avant patch si un agent ou une allowlist doit être créé(e)
+- sauvegarde aussi la config OpenClaw avant patch si une allowlist doit être modifiée
 
 Options utiles :
 
 ```bash
 ./scripts/install-openclaw-agent.sh --dry-run
 ./scripts/install-openclaw-agent.sh --agent main
-./scripts/install-openclaw-agent.sh --new-agent coach-garmin --agent-name "Garmin Coach"
+./scripts/install-openclaw-agent.sh --mode update --agent main
 ./scripts/install-openclaw-agent.sh --sync-on-calendar '*-*-* 06:00:00'
 ./scripts/install-openclaw-agent.sh --export-on-calendar '*-*-* 07:00:00'
 ./scripts/install-openclaw-agent.sh --weekly-planning-session-key 'agent:garmin-coach:telegram:direct:8771763758'

@@ -10,6 +10,10 @@ L’idée est :
 - des scripts très fins comme points d’entrée
 - pas de logique dispersée dans des fichiers shell ou des scripts isolés
 
+Le flux d'installation OpenClaw doit suivre cette règle aussi :
+- `scripts/install-openclaw-agent.sh` reste un bootstrap fin
+- la logique d'installation/update/repair vit dans `garmin_coach.install_openclaw_agent`
+
 ## Principe
 
 On sépare clairement :
@@ -140,6 +144,10 @@ Règle :
 - renvoient le JSON final
 
 Ils ne doivent pas contenir la vraie logique métier.
+
+Même principe pour l'installeur OpenClaw :
+- le shell bootstrappe l'environnement
+- le module Python porte l'orchestration réelle
 
 ### `garmin_coach/config.py`
 Gestion de la configuration locale.
