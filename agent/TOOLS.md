@@ -11,6 +11,9 @@ Les scripts CLI générés par `[project.scripts]` sont le contrat public de l'a
 | `auth-garmin` | `auth_garmin` | [auth-garmin](skills/auth-garmin/SKILL.md) | Authentifier ou réutiliser un token Garmin Connect |
 | `sync-garmin` | `sync_garmin` | [sync-garmin](skills/sync-garmin/SKILL.md) | Importer activités + métriques Garmin sur une plage |
 | `get-activities` | `get_activities` | [get-activities](skills/get-activities/SKILL.md) | Lire les activités importées sur une période |
+| `get-pending-debriefs` | `get_pending_debriefs` | [get-pending-debriefs](skills/get-pending-debriefs/SKILL.md) | Détecter les activités récentes à débriefer |
+| `mark-activity-debrief-prompted` | `mark_activity_debrief_prompted` | [mark-activity-debrief-prompted](skills/mark-activity-debrief-prompted/SKILL.md) | Marquer qu'un prompt de débrief a déjà été envoyé |
+| `save-activity-debrief` | `save_activity_debrief` | [save-activity-debrief](skills/save-activity-debrief/SKILL.md) | Enregistrer le retour utilisateur d'un débrief post-activité |
 | `get-fitness-state` | `get_fitness_state` | [get-fitness-state](skills/get-fitness-state/SKILL.md) | Lire les métriques journalières de forme |
 
 ## Objectifs

@@ -29,13 +29,15 @@ Options:
   --python BIN              Python binary to use for venv creation
   --agent ID                Install into an existing OpenClaw agent
   --update-skills MODE      auto|yes|no (patch skill allowlist when target agent is restricted)
-  --sync-on-calendar SPEC   systemd OnCalendar spec for Garmin sync (default: daily)
+  --sync-on-calendar SPEC   systemd OnCalendar spec for Garmin sync (default: hourly)
   --export-on-calendar SPEC systemd OnCalendar spec for plan export (default: daily)
   --sync-lookback-days N    lookback passed to sync-garmin (default: 3)
   --skip-systemd-sync       Do not install the Garmin sync systemd user timer
   --skip-systemd-export     Do not install the plan export systemd user timer
   --skip-weekly-planning-cron
                             Do not create/update the weekly planning OpenClaw cron
+  --skip-activity-debrief-cron
+                            Do not create/update the proactive activity debrief OpenClaw cron
   --weekly-planning-on-calendar EXPR
                             Cron expression for weekly planning (default: "0 18 * * 0")
   --weekly-planning-tz IANA Timezone for weekly planning cron (default: UTC)
@@ -52,6 +54,23 @@ Options:
                             Agent prompt override for weekly planning cron
   --weekly-planning-model MODEL
                             Model override for weekly planning cron
+  --activity-debrief-on-calendar EXPR
+                            Cron expression for proactive activity debriefs (default: "10 8-19 * * *")
+  --activity-debrief-tz IANA Timezone for proactive activity debrief cron (default: UTC)
+  --activity-debrief-session-key KEY
+                            Route proactive activity debrief runs into an existing OpenClaw session
+  --activity-debrief-channel CHANNEL
+                            Delivery channel for proactive activity debrief fallback announce
+  --activity-debrief-to DEST
+                            Delivery destination for proactive activity debrief fallback announce
+  --activity-debrief-account ID
+                            Delivery account id for proactive activity debrief fallback announce
+  --activity-debrief-name NAME
+                            Cron job name override (default: activity-debrief-<agent-id>)
+  --activity-debrief-message TEXT
+                            Agent prompt override for proactive activity debrief cron
+  --activity-debrief-model MODEL
+                            Model override for proactive activity debrief cron
   --no-bootstrap            Do not install BOOTSTRAP.md
   --preserve-agent-core     Do not overwrite HEARTBEAT.md, IDENTITY.md, SOUL.md if they exist
   --skip-package-install    Copy files only; skip venv/package install
@@ -74,6 +93,7 @@ What it installs:
   - systemd user timer  -> Garmin sync automatique (unless --skip-systemd-sync)
   - systemd user timer  -> export quotidien des plans du lendemain (unless --skip-systemd-export)
   - OpenClaw cron        -> weekly planning, when session/delivery context is provided
+  - OpenClaw cron        -> proactive activity debriefs, when session/delivery context is provided
   - persisted config     -> <install-root>/coach-config.json
   - install manifest     -> <install-root>/manifest.json
 """
@@ -85,6 +105,15 @@ WEEKLY_PLANNING_DEFAULT_MESSAGE = (
     "cible. Évite les doublons si le plan existe déjà. N'exporte vers Garmin que l'horizon court, "
     "sauf demande explicite de l'utilisateur. Termine par un résumé concis de la semaine et les "
     "points de vigilance."
+)
+
+ACTIVITY_DEBRIEF_DEFAULT_MESSAGE = (
+    "Débrief proactif post-séance. Suis playbooks/proactive_activity_debrief.md : lis les activités "
+    "à débriefer avec get-pending-debriefs, n'envoie qu'un seul message même s'il y a plusieurs "
+    "activités, demande pour chacune un RPE /10, une note libre et toute douleur ou gêne utile au "
+    "suivi blessure (pendant, après, lendemain), puis marque les activités sollicitées avec "
+    "mark-activity-debrief-prompted seulement si le message part réellement. Si rien n'est éligible, "
+    "réponds par NO_REPLY."
 )
 
 ENTRYPOINT_COMMANDS = [
@@ -101,6 +130,9 @@ ENTRYPOINT_COMMANDS = [
     "get-current-plan",
     "get-fitness-state",
     "get-goals",
+    "get-pending-debriefs",
+    "mark-activity-debrief-prompted",
+    "save-activity-debrief",
     "set-constraint-status",
     "set-plan-session-status",
     "set-plan-status",
@@ -131,7 +163,8 @@ class InstallOptions:
     skip_systemd_sync: bool = False
     skip_systemd_export: bool = False
     skip_weekly_planning_cron: bool = False
-    sync_on_calendar: str = "daily"
+    skip_activity_debrief_cron: bool = False
+    sync_on_calendar: str = "hourly"
     export_on_calendar: str = "daily"
     sync_lookback_days: int = 3
     weekly_planning_on_calendar: str = "0 18 * * 0"
@@ -143,6 +176,15 @@ class InstallOptions:
     weekly_planning_name: str = ""
     weekly_planning_message: str = ""
     weekly_planning_model: str = ""
+    activity_debrief_on_calendar: str = "10 8-19 * * *"
+    activity_debrief_tz: str = "UTC"
+    activity_debrief_session_key: str = ""
+    activity_debrief_channel: str = ""
+    activity_debrief_to: str = ""
+    activity_debrief_account: str = ""
+    activity_debrief_name: str = ""
+    activity_debrief_message: str = ""
+    activity_debrief_model: str = ""
 
 
 @dataclass
@@ -170,6 +212,14 @@ class ExistingInstallState:
     weekly_schedule: str = ""
     weekly_model: str = ""
     weekly_name: str = ""
+    debrief_session_key: str = ""
+    debrief_to: str = ""
+    debrief_channel: str = ""
+    debrief_account: str = ""
+    debrief_tz: str = ""
+    debrief_schedule: str = ""
+    debrief_model: str = ""
+    debrief_name: str = ""
 
 
 @dataclass
@@ -192,6 +242,7 @@ class RuntimeState:
     feature_systemd_sync: bool = False
     feature_systemd_export: bool = False
     feature_weekly_planning: bool = False
+    feature_activity_debrief: bool = False
     db_status: str = "not-run"
     last_sync_timer_name: str = ""
     last_export_timer_name: str = ""
@@ -879,6 +930,16 @@ class Installer:
             previous.weekly_schedule = str(weekly.get("schedule", ""))
             previous.weekly_model = str(weekly.get("model", ""))
             previous.weekly_name = str(weekly.get("name", ""))
+            debrief = config.get("activity_debrief", {})
+            debrief_delivery = debrief.get("delivery", {})
+            previous.debrief_session_key = str(debrief.get("session_key", ""))
+            previous.debrief_to = str(debrief_delivery.get("to", ""))
+            previous.debrief_channel = str(debrief_delivery.get("channel", ""))
+            previous.debrief_account = str(debrief_delivery.get("account_id", ""))
+            previous.debrief_tz = str(debrief.get("timezone", ""))
+            previous.debrief_schedule = str(debrief.get("schedule", ""))
+            previous.debrief_model = str(debrief.get("model", ""))
+            previous.debrief_name = str(debrief.get("name", ""))
         self.state.previous = previous
 
         detected_mode = "install"
@@ -924,6 +985,34 @@ class Installer:
         if not self.options.weekly_planning_message:
             self.options.weekly_planning_message = WEEKLY_PLANNING_DEFAULT_MESSAGE
 
+    def resolve_activity_debrief_defaults(self) -> None:
+        previous = self.state.previous
+        selected = self.require_selected_agent()
+        if not self.options.activity_debrief_name:
+            self.options.activity_debrief_name = previous.debrief_name or f"activity-debrief-{selected.agent_id}"
+        if not self.options.activity_debrief_model:
+            self.options.activity_debrief_model = previous.debrief_model or selected.model
+        if not self.options.activity_debrief_tz or self.options.activity_debrief_tz == "UTC":
+            if previous.debrief_tz:
+                self.options.activity_debrief_tz = previous.debrief_tz
+            elif os.environ.get("TZ"):
+                self.options.activity_debrief_tz = os.environ["TZ"]
+        if (
+            self.options.activity_debrief_on_calendar == "10 8-19 * * *"
+            and previous.debrief_schedule
+        ):
+            self.options.activity_debrief_on_calendar = previous.debrief_schedule
+        if not self.options.activity_debrief_session_key:
+            self.options.activity_debrief_session_key = previous.debrief_session_key
+        if not self.options.activity_debrief_to:
+            self.options.activity_debrief_to = previous.debrief_to
+        if not self.options.activity_debrief_channel:
+            self.options.activity_debrief_channel = previous.debrief_channel
+        if not self.options.activity_debrief_account:
+            self.options.activity_debrief_account = previous.debrief_account
+        if not self.options.activity_debrief_message:
+            self.options.activity_debrief_message = ACTIVITY_DEBRIEF_DEFAULT_MESSAGE
+
     def prompt_weekly_planning_if_needed(self) -> None:
         if self.options.skip_weekly_planning_cron:
             return
@@ -966,6 +1055,66 @@ class Installer:
             "Model du weekly planning", self.options.weekly_planning_model
         )
 
+    def prompt_activity_debrief_if_needed(self) -> None:
+        if self.options.skip_activity_debrief_cron:
+            return
+        if self.options.activity_debrief_session_key or self.options.activity_debrief_to:
+            return
+        if not self.is_tty():
+            return
+        selected = self.require_selected_agent()
+        if not self.prompt_yes_no(
+            f"Créer aussi le cron OpenClaw de débrief proactif pour l'agent {selected.agent_id} ?",
+            "y",
+        ):
+            self.options.skip_activity_debrief_cron = True
+            return
+        self.options.activity_debrief_session_key = self.prompt_line(
+            "Session key cible du débrief proactif (recommandé; vide pour utiliser seulement une delivery explicite)",
+            self.options.activity_debrief_session_key or self.options.weekly_planning_session_key,
+        )
+        if not self.options.activity_debrief_session_key:
+            self.options.activity_debrief_channel = self.prompt_line(
+                "Channel de delivery du débrief proactif (ex: telegram, discord)",
+                self.options.activity_debrief_channel or self.options.weekly_planning_channel,
+            )
+            self.options.activity_debrief_to = self.prompt_line(
+                "Destination de delivery du débrief proactif (chat/user id)",
+                self.options.activity_debrief_to or self.options.weekly_planning_to,
+            )
+            self.options.activity_debrief_account = self.prompt_line(
+                "Account id de delivery du débrief proactif (optionnel)",
+                self.options.activity_debrief_account or self.options.weekly_planning_account,
+            )
+            if not self.options.activity_debrief_to:
+                self.log("Skipping activity debrief cron: no session key or delivery destination provided.")
+                self.options.skip_activity_debrief_cron = True
+                return
+        self.options.activity_debrief_on_calendar = self.prompt_line(
+            "Expression cron pour le débrief proactif", self.options.activity_debrief_on_calendar
+        )
+        self.options.activity_debrief_tz = self.prompt_line(
+            "Timezone IANA du débrief proactif", self.options.activity_debrief_tz
+        )
+        self.options.activity_debrief_model = self.prompt_line(
+            "Model du débrief proactif", self.options.activity_debrief_model
+        )
+
+    def find_existing_cron_id(self, name: str, agent_id: str) -> str:
+        try:
+            raw = subprocess.check_output(
+                ["openclaw", "cron", "list", "--json"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            data = json.loads(raw)
+        except Exception:
+            return ""
+        for job in data.get("jobs", []):
+            if job.get("name") == name and job.get("agentId") == agent_id:
+                return str(job.get("id", ""))
+        return ""
+
     def create_or_update_weekly_planning_cron(self) -> None:
         self.resolve_weekly_planning_defaults()
         if self.options.skip_weekly_planning_cron:
@@ -985,7 +1134,7 @@ class Installer:
             return
 
         selected = self.require_selected_agent()
-        existing_id = self.find_existing_weekly_cron_id(
+        existing_id = self.find_existing_cron_id(
             self.options.weekly_planning_name,
             selected.agent_id,
         )
@@ -1051,20 +1200,90 @@ class Installer:
             if output.strip():
                 print(output.rstrip(), file=sys.stderr)
 
-    def find_existing_weekly_cron_id(self, name: str, agent_id: str) -> str:
-        try:
-            raw = subprocess.check_output(
-                ["openclaw", "cron", "list", "--json"],
-                stderr=subprocess.DEVNULL,
-                text=True,
+    def create_or_update_activity_debrief_cron(self) -> None:
+        self.resolve_activity_debrief_defaults()
+        if self.options.skip_activity_debrief_cron:
+            self.log("Skipping activity debrief cron by request.")
+            return
+        if shutil.which("openclaw") is None:
+            self.log("openclaw CLI not found, skipping activity debrief cron creation")
+            return
+        self.prompt_activity_debrief_if_needed()
+        if self.options.skip_activity_debrief_cron:
+            return
+        if not self.options.activity_debrief_session_key and not self.options.activity_debrief_to:
+            self.log(
+                "Skipping activity debrief cron: pass --activity-debrief-session-key or --activity-debrief-to "
+                "(with optional channel/account), or run interactively."
             )
-            data = json.loads(raw)
-        except Exception:
-            return ""
-        for job in data.get("jobs", []):
-            if job.get("name") == name and job.get("agentId") == agent_id:
-                return str(job.get("id", ""))
-        return ""
+            return
+
+        selected = self.require_selected_agent()
+        existing_id = self.find_existing_cron_id(
+            self.options.activity_debrief_name,
+            selected.agent_id,
+        )
+        command = [
+            "openclaw",
+            "cron",
+            "edit" if existing_id else "add",
+        ]
+        if existing_id:
+            command.append(existing_id)
+        command.extend(
+            [
+                "--cron",
+                self.options.activity_debrief_on_calendar,
+                "--name",
+                self.options.activity_debrief_name,
+                "--agent",
+                selected.agent_id,
+                "--message",
+                self.options.activity_debrief_message,
+                "--thinking",
+                "medium",
+                "--light-context",
+            ]
+        )
+        if self.options.activity_debrief_model:
+            command.extend(["--model", self.options.activity_debrief_model])
+        if self.options.activity_debrief_tz:
+            command.extend(["--tz", self.options.activity_debrief_tz])
+        if self.options.activity_debrief_session_key:
+            command.extend(["--session-key", self.options.activity_debrief_session_key])
+        else:
+            command.extend(["--session", "isolated"])
+        if self.options.activity_debrief_to:
+            command.extend(["--announce", "--to", self.options.activity_debrief_to])
+            if self.options.activity_debrief_channel:
+                command.extend(["--channel", self.options.activity_debrief_channel])
+            if self.options.activity_debrief_account:
+                command.extend(["--account", self.options.activity_debrief_account])
+
+        if self.options.dry_run:
+            print(f"[dry-run] create/update activity debrief cron: {self.options.activity_debrief_name}")
+            self.state.feature_activity_debrief = True
+            return
+
+        if existing_id:
+            self.log(f"Updating existing activity debrief cron: {self.options.activity_debrief_name}")
+        else:
+            self.log(f"Creating activity debrief cron: {self.options.activity_debrief_name}")
+
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        output = result.stdout + result.stderr
+        if result.returncode == 0:
+            if output.strip():
+                print(output.rstrip())
+            self.state.feature_activity_debrief = True
+        elif existing_id:
+            self.log("Warning: Failed to update existing activity debrief cron; keeping current job.")
+            if output.strip():
+                print(output.rstrip(), file=sys.stderr)
+        else:
+            self.log("Warning: Failed to create activity debrief cron")
+            if output.strip():
+                print(output.rstrip(), file=sys.stderr)
 
     def write_persisted_coach_config(self, backup_root: Path) -> None:
         path = self.require_coach_config_path()
@@ -1080,6 +1299,13 @@ class Installer:
             delivery["channel"] = self.options.weekly_planning_channel
         if self.options.weekly_planning_account:
             delivery["account_id"] = self.options.weekly_planning_account
+        debrief_delivery: dict[str, str] = {}
+        if self.options.activity_debrief_to:
+            debrief_delivery["to"] = self.options.activity_debrief_to
+        if self.options.activity_debrief_channel:
+            debrief_delivery["channel"] = self.options.activity_debrief_channel
+        if self.options.activity_debrief_account:
+            debrief_delivery["account_id"] = self.options.activity_debrief_account
         config = {
             "schema_version": 1,
             "agent_id": self.require_selected_agent().agent_id,
@@ -1091,6 +1317,15 @@ class Installer:
                 "schedule": self.options.weekly_planning_on_calendar,
                 "session_key": self.options.weekly_planning_session_key,
                 "delivery": delivery,
+            },
+            "activity_debrief": {
+                "enabled": self.state.feature_activity_debrief,
+                "name": self.options.activity_debrief_name,
+                "model": self.options.activity_debrief_model,
+                "timezone": self.options.activity_debrief_tz,
+                "schedule": self.options.activity_debrief_on_calendar,
+                "session_key": self.options.activity_debrief_session_key,
+                "delivery": debrief_delivery,
             },
             "garmin": {
                 "sync_enabled": self.state.feature_systemd_sync,
@@ -1134,6 +1369,7 @@ class Installer:
                 "systemd_sync": self.state.feature_systemd_sync,
                 "systemd_export": self.state.feature_systemd_export,
                 "weekly_planning_cron": self.state.feature_weekly_planning,
+                "activity_debrief_cron": self.state.feature_activity_debrief,
             },
             "backup": {
                 "last_backup_dir": str(backup_root),
@@ -1192,6 +1428,10 @@ class Installer:
         )
         self.log(
             f"Weekly cron:    {self.options.weekly_planning_name if self.state.feature_weekly_planning else 'skipped'}"
+        )
+        self.log(
+            "Activity debrief cron:    "
+            f"{self.options.activity_debrief_name if self.state.feature_activity_debrief else 'skipped'}"
         )
 
     def require_selected_agent(self) -> AgentInfo:
@@ -1401,6 +1641,7 @@ class Installer:
             runtime_env_file,
         )
         self.create_or_update_weekly_planning_cron()
+        self.create_or_update_activity_debrief_cron()
         self.write_persisted_coach_config(backup_root)
         self.write_manifest(ts, backup_root)
         self.print_install_summary(backup_root)
@@ -1463,6 +1704,9 @@ def parse_args(argv: list[str], repo_dir: Path) -> InstallOptions:
         elif arg == "--skip-weekly-planning-cron":
             options.skip_weekly_planning_cron = True
             index += 1
+        elif arg == "--skip-activity-debrief-cron":
+            options.skip_activity_debrief_cron = True
+            index += 1
         elif arg == "--weekly-planning-on-calendar":
             options.weekly_planning_on_calendar = require_value()
         elif arg == "--weekly-planning-tz":
@@ -1481,6 +1725,24 @@ def parse_args(argv: list[str], repo_dir: Path) -> InstallOptions:
             options.weekly_planning_message = require_value()
         elif arg == "--weekly-planning-model":
             options.weekly_planning_model = require_value()
+        elif arg == "--activity-debrief-on-calendar":
+            options.activity_debrief_on_calendar = require_value()
+        elif arg == "--activity-debrief-tz":
+            options.activity_debrief_tz = require_value()
+        elif arg == "--activity-debrief-session-key":
+            options.activity_debrief_session_key = require_value()
+        elif arg == "--activity-debrief-channel":
+            options.activity_debrief_channel = require_value()
+        elif arg == "--activity-debrief-to":
+            options.activity_debrief_to = require_value()
+        elif arg == "--activity-debrief-account":
+            options.activity_debrief_account = require_value()
+        elif arg == "--activity-debrief-name":
+            options.activity_debrief_name = require_value()
+        elif arg == "--activity-debrief-message":
+            options.activity_debrief_message = require_value()
+        elif arg == "--activity-debrief-model":
+            options.activity_debrief_model = require_value()
         elif arg == "--no-bootstrap":
             options.with_bootstrap = False
             index += 1

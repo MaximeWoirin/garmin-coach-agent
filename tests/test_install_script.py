@@ -41,6 +41,7 @@ def _run_installer(
     *extra_args: str,
     extra_env: dict[str, str] | None = None,
     skip_weekly: bool = True,
+    skip_activity_debrief: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     home = tmp_path / "home"
     workspace = tmp_path / "workspace"
@@ -71,6 +72,8 @@ def _run_installer(
     ]
     if skip_weekly:
         cmd.insert(len(cmd) - len(extra_args), "--skip-weekly-planning-cron")
+    if skip_activity_debrief:
+        cmd.insert(len(cmd) - len(extra_args), "--skip-activity-debrief-cron")
     result = subprocess.run(
         cmd,
         cwd=REPO_DIR,
@@ -108,6 +111,7 @@ def test_install_script_writes_json_manifest_and_config(tmp_path: Path) -> None:
     assert coach_config["schema_version"] == 1
     assert coach_config["agent_id"] == "coach"
     assert coach_config["weekly_planning"]["enabled"] is False
+    assert coach_config["activity_debrief"]["enabled"] is False
     assert coach_config["garmin"] == {
         "sync_enabled": False,
         "export_tomorrow_enabled": False,
@@ -123,12 +127,14 @@ def test_install_script_writes_json_manifest_and_config(tmp_path: Path) -> None:
         "systemd_sync": False,
         "systemd_export": False,
         "weekly_planning_cron": False,
+        "activity_debrief_cron": False,
     }
     assert manifest["backup"]["last_backup_dir"].startswith(str(install_root / "backups"))
 
     assert "Mode:           install" in result.stdout
     assert "Systemd sync:   skipped" in result.stdout
     assert "Weekly cron:    skipped" in result.stdout
+    assert "Activity debrief cron:    skipped" in result.stdout
 
 
 def test_install_script_preserves_existing_weekly_settings_on_update(tmp_path: Path) -> None:
@@ -142,6 +148,14 @@ def test_install_script_preserves_existing_weekly_settings_on_update(tmp_path: P
         "Europe/Paris",
         "--weekly-planning-name",
         "weekly-coach",
+        "--activity-debrief-session-key",
+        "session:coach:telegram",
+        "--activity-debrief-model",
+        "azure/gpt-5.4-mini",
+        "--activity-debrief-tz",
+        "Europe/Paris",
+        "--activity-debrief-name",
+        "activity-debrief-coach",
     )
     assert first.returncode == 0, first.stderr
 
@@ -158,8 +172,79 @@ def test_install_script_preserves_existing_weekly_settings_on_update(tmp_path: P
     assert weekly["timezone"] == "Europe/Paris"
     assert weekly["name"] == "weekly-coach"
 
+    activity_debrief = coach_config["activity_debrief"]
+    assert activity_debrief["enabled"] is False
+    assert activity_debrief["session_key"] == "session:coach:telegram"
+    assert activity_debrief["model"] == "azure/gpt-5.4-mini"
+    assert activity_debrief["timezone"] == "Europe/Paris"
+    assert activity_debrief["name"] == "activity-debrief-coach"
+
     assert manifest["install_mode"] == "update"
     assert "Mode:           update" in second.stdout
+
+
+def test_install_script_creates_activity_debrief_cron(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    state_path = tmp_path / "cron-state.json"
+    log_path = tmp_path / "openclaw.log"
+    state_path.write_text(json.dumps({"jobs": []}), encoding="utf-8")
+    (fake_bin / "openclaw").write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "printf '%s\\n' \"$*\" >> \"$FAKE_OPENCLAW_LOG\"\n"
+        "if [[ \"${1:-}\" == cron && \"${2:-}\" == list && \"${3:-}\" == --json ]]; then\n"
+        "  cat \"$FAKE_OPENCLAW_STATE\"\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == cron && \"${2:-}\" == add ]]; then\n"
+        "  echo '{\"id\":\"new-id\"}'\n"
+        "  exit 0\n"
+        "fi\n"
+        "echo 'unsupported fake openclaw invocation' >&2\n"
+        "exit 2\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "openclaw").chmod(0o755)
+
+    result = _run_installer(
+        tmp_path,
+        "--activity-debrief-session-key",
+        "session:coach:telegram",
+        "--activity-debrief-model",
+        "azure/gpt-5.4-1",
+        "--activity-debrief-tz",
+        "Europe/Paris",
+        "--activity-debrief-name",
+        "activity-debrief-coach",
+        extra_env={
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_OPENCLAW_STATE": str(state_path),
+            "FAKE_OPENCLAW_LOG": str(log_path),
+        },
+        skip_activity_debrief=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    install_root = result.install_root  # type: ignore[attr-defined]
+    coach_config = json.loads((install_root / "coach-config.json").read_text(encoding="utf-8"))
+    manifest = json.loads((install_root / "manifest.json").read_text(encoding="utf-8"))
+
+    assert coach_config["activity_debrief"] == {
+        "enabled": True,
+        "name": "activity-debrief-coach",
+        "model": "azure/gpt-5.4-1",
+        "timezone": "Europe/Paris",
+        "schedule": "10 8-19 * * *",
+        "session_key": "session:coach:telegram",
+        "delivery": {},
+    }
+    assert manifest["features"]["activity_debrief_cron"] is True
+    assert "Activity debrief cron:    activity-debrief-coach" in result.stdout
+
+    log = log_path.read_text(encoding="utf-8")
+    assert "cron list --json" in log
+    assert "activity-debrief-coach" in log
 
 
 def test_install_script_accepts_explicit_update_mode_when_state_matches(tmp_path: Path) -> None:

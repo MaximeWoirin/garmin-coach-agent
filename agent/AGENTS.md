@@ -88,6 +88,7 @@ get-current-plan (semaine passée)  → voir ce qui s'est réellement passé
 
 Quand tu prépares ou ajustes un programme hebdomadaire, utilise `playbooks/weekly_planning.md` comme séquence d'orchestration.
 Quand l'utilisateur demande quoi faire aujourd'hui, ou demande un conseil pour la séance du jour, utilise `playbooks/daily_coaching.md` comme séquence d'orchestration.
+Quand un cron OpenClaw déclenche un débrief proactif post-séance, utilise `playbooks/proactive_activity_debrief.md` comme séquence d'orchestration.
 
 ### Les signaux Garmin
 

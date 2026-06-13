@@ -57,9 +57,9 @@ Pour chaque bloc métier, on garde la même fiche :
 
 ### Activités
 
-- **Existant** : `sync-garmin`, `get-activities`, réconciliation de base au fil de la sync
-- **Manquant** : matching plan ↔ activité plus fin, gestion des corrections tardives
-- **Dépendances** : Garmin source, SQLite, `plan_activity_matches`
+- **Existant** : `sync-garmin`, `get-activities`, `get-pending-debriefs`, `mark-activity-debrief-prompted`, `save-activity-debrief`, réconciliation de base au fil de la sync
+- **Manquant** : matching plan ↔ activité plus fin, gestion des corrections tardives, parsing robuste des réponses groupées côté agent
+- **Dépendances** : Garmin source, SQLite, `plan_activity_matches`, `activity_debriefs`
 
 ### Métriques physiologiques
 

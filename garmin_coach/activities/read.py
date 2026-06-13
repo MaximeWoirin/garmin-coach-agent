@@ -29,23 +29,28 @@ def get_activities(
     """
     with db_connection(db_path) as conn:
         sql = """
-            SELECT id, source, external_id, activity_type, activity_name,
-                   start_time_utc, local_start_time, duration_s, moving_duration_s,
-                   distance_m, elevation_gain_m, calories_kcal,
-                   avg_hr, max_hr, avg_speed_mps, avg_pace_sec_per_km,
-                   training_effect_aerobic, training_effect_anaerobic,
-                   perceived_effort
-            FROM activities
-            WHERE date(coalesce(local_start_time, start_time_utc)) >= ?
-              AND date(coalesce(local_start_time, start_time_utc)) <= ?
+            SELECT a.id, a.source, a.external_id, a.activity_type, a.activity_name,
+                   a.start_time_utc, a.local_start_time, a.duration_s, a.moving_duration_s,
+                   a.distance_m, a.elevation_gain_m, a.calories_kcal,
+                   a.avg_hr, a.max_hr, a.avg_speed_mps, a.avg_pace_sec_per_km,
+                   a.training_effect_aerobic, a.training_effect_anaerobic,
+                   a.perceived_effort,
+                   d.status AS debrief_status,
+                   d.completed_at AS debrief_completed_at,
+                   d.rpe AS debrief_rpe,
+                   d.plan_session_id AS debrief_plan_session_id
+            FROM activities a
+            LEFT JOIN activity_debriefs d ON d.activity_id = a.id
+            WHERE date(coalesce(a.local_start_time, a.start_time_utc)) >= ?
+              AND date(coalesce(a.local_start_time, a.start_time_utc)) <= ?
         """
         params: list[Any] = [start, end]
 
         if activity_type:
-            sql += " AND activity_type = ?"
+            sql += " AND a.activity_type = ?"
             params.append(activity_type)
 
-        sql += " ORDER BY start_time_utc DESC"
+        sql += " ORDER BY a.start_time_utc DESC"
 
         if limit:
             sql += " LIMIT ?"

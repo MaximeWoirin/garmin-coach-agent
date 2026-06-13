@@ -237,14 +237,14 @@ Interface JSON minimale :
 python -m garmin_coach.sync_garmin
 ```
 
-Script d’ingestion quotidien.
+Script d’ingestion fréquent.
 
-Il est appelé par le cron, idéalement tôt le matin vers 4h UTC, et doit récupérer l’état utile de la veille, puis mettre à jour la base.
+Il est appelé par le cron de sync, idéalement toutes les heures, et doit récupérer l’état utile récent avec un petit lookback pour absorber la latence Garmin.
 
 Contenu attendu :
-- activités de la veille
-- daily metrics de la veille
-- éventuellement un petit lookback sur quelques jours pour rattraper les données Garmin arrivées en retard
+- activités récentes, y compris la journée en cours quand on force explicitement la plage
+- daily metrics récentes
+- un petit lookback sur quelques jours pour rattraper les données Garmin arrivées en retard
 
 Rôle :
 - alimenter SQLite
@@ -318,7 +318,82 @@ Sortie :
 Contenu attendu :
 - activités sur la plage demandée
 - résumé de volume
+- infos de débrief si un retour existe déjà
 - résumé d’intensité si disponible
+
+### get-pending-debriefs
+
+```bash
+python -m garmin_coach.get_pending_debriefs --lookback-hours 36
+```
+
+Script de détection des activités récentes qui peuvent recevoir un débrief.
+
+Entrées :
+- `--lookback-hours` : fenêtre de recherche, défaut `36`
+- `--min-age-minutes` : âge minimum avant de proposer un débrief, défaut `0`
+- `--reprompt-after-hours` : cooldown avant une relance, défaut `12`
+- `--max-prompt-count` : nombre max de relances admissibles, défaut `2`
+- `--limit` : nombre max de résultats, défaut `20`
+
+Sortie :
+- JSON avec les activités éligibles, leur état de débrief, et un résumé compact
+
+Comportement backbone :
+- cherche les activités récentes dans `activities`
+- crée au besoin une ligne `activity_debriefs` en statut `pending`
+- réutilise un éventuel lien existant vers `plan_sessions`
+- exclut les débriefs déjà `completed` ou `dismissed`
+- applique des règles minimales de cooldown / relance
+
+### mark-activity-debrief-prompted
+
+```bash
+python -m garmin_coach.mark_activity_debrief_prompted --activity-id 123 --activity-id 456
+```
+
+Script de transition de statut pour enregistrer qu'un prompt proactif a bien été envoyé.
+
+Entrées :
+- `--activity-id` : identifiant local d'activité, répétable
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec la liste des débriefs marqués `prompted`
+
+Comportement backbone :
+- vérifie que les lignes `activity_debriefs` existent bien
+- refuse d'écraser des débriefs déjà `completed` ou `dismissed`
+- incrémente `prompt_count`
+- renseigne `first_prompted_at` et `last_prompted_at`
+
+### save-activity-debrief
+
+```bash
+python -m garmin_coach.save_activity_debrief --activity-id 123 --rpe 7 --note "Séance ok"
+```
+
+Script de persistance d’un débrief utilisateur rattaché à une activité réelle.
+
+Entrées :
+- `--activity-id` : identifiant local de l’activité, obligatoire
+- `--rpe` : RPE utilisateur `1..10`, obligatoire
+- `--note` : note libre optionnelle
+- `--pain-during` : douleur pendant la séance `0..10`, optionnelle
+- `--pain-after` : douleur juste après `0..10`, optionnelle
+- `--pain-next-morning` : douleur le lendemain matin `0..10`, optionnelle
+- `--plan-session-id` : lien explicite vers une séance planifiée, optionnel
+- `--source` : source du débrief, défaut `user`
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec le débrief sauvegardé et l’activité liée
+
+Comportement backbone :
+- crée ou complète une ligne `activity_debriefs` liée à `activities`
+- garde `plan_session_id` optionnel
+- refuse d’écraser un débrief déjà `completed` ou `dismissed`
+- sert de brique de persistance pour une future orchestration proactive
 
 ### get-fitness-state
 

@@ -198,6 +198,11 @@ def delete_plan_session(
                 "dry_run": True,
             }, warnings=["Dry run — nothing deleted."])
 
+        conn.execute(
+            "UPDATE activity_debriefs SET plan_session_id=NULL, updated_at=CURRENT_TIMESTAMP WHERE plan_session_id=?",
+            (session_id,),
+        )
+        conn.execute("DELETE FROM plan_activity_matches WHERE plan_session_id=?", (session_id,))
         conn.execute("DELETE FROM plan_sessions WHERE id=?", (session_id,))
         conn.commit()
 

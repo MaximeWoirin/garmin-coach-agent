@@ -81,3 +81,10 @@ class MatchType(StrEnum):
 class ActivitySource(StrEnum):
     GARMIN = "garmin"
     MANUAL = "manual"
+
+
+class DebriefStatus(StrEnum):
+    PENDING = "pending"
+    PROMPTED = "prompted"
+    COMPLETED = "completed"
+    DISMISSED = "dismissed"

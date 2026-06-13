@@ -21,8 +21,9 @@ Elles servent de contrat entre les données et l’agent.
 ### 3. Cron
 
 Un cron lance les jobs récurrents.
-En V0, il sert surtout à déclencher `sync-garmin` tous les jours tôt le matin, autour de 4h UTC, pour importer les activités de la veille et les daily metrics, avec un petit lookback si nécessaire.
-Son rôle est opérationnel, pas “intelligent”.
+En V0, il sert surtout à déclencher `sync-garmin` de façon fréquente (par défaut toutes les heures) pour réduire la latence d’import des activités récentes et garder les daily metrics à jour avec un petit lookback.
+Un second cron OpenClaw peut ensuite déclencher le débrief proactif post-séance, 10 minutes après la sync, avec une logique de regroupement des activités en un seul message.
+Son rôle reste opérationnel, avec une orchestration légère mais pas une planification complexe.
 
 L’intégration technique Garmin repose sur **`python-garminconnect`**.
 Un script `auth-garmin` gère le premier setup et les ré-authentifications éventuelles.

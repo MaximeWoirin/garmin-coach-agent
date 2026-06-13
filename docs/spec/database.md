@@ -310,6 +310,44 @@ CREATE TABLE activities (
 );
 ```
 
+### `activity_debriefs`
+
+Débrief subjectif rattaché à une activité réelle.
+
+Le lien principal est `activity_id`.
+Le lien vers `plan_sessions` reste optionnel pour tolérer les activités hors plan.
+Le débrief est pensé comme immuable une fois `completed` ou `dismissed`.
+
+```sql
+CREATE TABLE activity_debriefs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  activity_id INTEGER NOT NULL,
+  plan_session_id INTEGER,
+
+  status TEXT NOT NULL DEFAULT 'pending',
+  prompt_count INTEGER NOT NULL DEFAULT 0,
+  first_prompted_at TEXT,
+  last_prompted_at TEXT,
+  completed_at TEXT,
+  dismissed_at TEXT,
+
+  rpe INTEGER,
+  pain_during INTEGER,
+  pain_after INTEGER,
+  pain_next_morning INTEGER,
+  note TEXT,
+  source TEXT NOT NULL DEFAULT 'agent',
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+  FOREIGN KEY (plan_session_id) REFERENCES plan_sessions(id) ON DELETE SET NULL,
+  UNIQUE (activity_id)
+);
+```
+
 ### `daily_metrics`
 
 Métriques journalières utiles au readiness.
@@ -413,7 +451,9 @@ On utilise un système de migrations **maison**, simple.
 migrations/
 ├── 0001_init.sql
 ├── 0002_add_sync_runs.sql
-└── 0003_plan_session_status.sql
+├── 0003_plan_session_status.sql
+├── 0004_add_session_payload_json.sql
+└── 0005_activity_debriefs.sql
 ```
 
 ### Règles

@@ -21,6 +21,8 @@ Cette config doit contenir ce qu'on ne peut pas auto-discover de façon fiable, 
 
 - cible du weekly planning (`sessionKey` ou delivery explicite)
 - timezone / horaire de weekly planning
+- cible du débrief proactif post-séance (`sessionKey` ou delivery explicite)
+- timezone / horaire du débrief proactif post-séance
 - politiques d'automatisation Garmin si elles ne sont pas implicites
 - autres préférences durables réellement nécessaires au comportement du coach
 
@@ -71,7 +73,7 @@ On veut :
    - routing/delivery déjà connue si retrouvable de façon fiable
 
 3. demander seulement le minimum manquant
-   - typiquement la vraie cible du weekly planning si elle n'est pas connue
+   - typiquement la vraie cible du weekly planning ou du débrief proactif si elle n'est pas connue
 
 ## Versioning Git - direction retenue à challenger
 
@@ -235,6 +237,7 @@ L'installeur doit pouvoir créer ou mettre à jour :
 - le timer `systemd --user` de sync Garmin
 - le timer `systemd --user` d'export Garmin des séances du lendemain
 - le cron OpenClaw de weekly planning
+- le cron OpenClaw de débrief proactif post-séance
 
 ### 4. Weekly planning : paramètres cibles
 
@@ -271,9 +274,12 @@ Elle ne doit pas contenir les détails techniques de version, de chemins, de run
 
 Exemples de contenu légitime :
 - configuration du weekly planning
+- configuration du débrief proactif post-séance
 - timezone métier du coach
 - cible du weekly planning (`sessionKey` ou delivery)
+- cible du débrief proactif (`sessionKey` ou delivery)
 - modèle du weekly planning si différent du défaut résolu
+- modèle du débrief proactif si différent du défaut résolu
 - politiques d'automatisation Garmin si elles sont produit et non simplement techniques
 
 ### Exemple de structure
@@ -287,6 +293,13 @@ Exemples de contenu légitime :
     "model": "azure/gpt-5.4-1",
     "timezone": "UTC",
     "schedule": "0 18 * * 0",
+    "session_key": "agent:garmin-coach:telegram:direct:8771763758"
+  },
+  "activity_debrief": {
+    "enabled": true,
+    "model": "azure/gpt-5.4-1",
+    "timezone": "UTC",
+    "schedule": "10 8-19 * * *",
     "session_key": "agent:garmin-coach:telegram:direct:8771763758"
   },
   "garmin": {
@@ -313,6 +326,17 @@ Exemples de contenu légitime :
     - `to` : string, optionnel
     - `channel` : string, optionnel
     - `account_id` : string, optionnel
+- `activity_debrief` : objet, requis
+  - `enabled` : bool, requis
+  - `name` : string, optionnel mais recommandé
+  - `model` : string, optionnel
+  - `timezone` : string IANA, optionnel
+  - `schedule` : string, optionnel
+  - `session_key` : string, optionnel
+  - `delivery` : objet, optionnel
+    - `to` : string, optionnel
+    - `channel` : string, optionnel
+    - `account_id` : string, optionnel
 - `garmin` : objet, requis
   - `sync_enabled` : bool, requis
   - `export_tomorrow_enabled` : bool, requis
@@ -320,6 +344,8 @@ Exemples de contenu légitime :
 Contraintes v1 :
 - `weekly_planning.session_key` et `weekly_planning.delivery.*` sont mutuellement alternatifs : au moins un mécanisme de routage doit exister pour activer réellement le weekly planning.
 - `weekly_planning.enabled=true` n'implique pas que le cron a été provisionné avec succès ; l'état technique réel reste dans le manifest.
+- `activity_debrief.session_key` et `activity_debrief.delivery.*` sont mutuellement alternatifs : au moins un mécanisme de routage doit exister pour activer réellement le débrief proactif.
+- `activity_debrief.enabled=true` n'implique pas que le cron a été provisionné avec succès ; l'état technique réel reste dans le manifest.
 
 ### Exclusions explicites
 
@@ -379,7 +405,8 @@ Le manifest doit stocker au moins :
     "db_migrated": true,
     "systemd_sync": true,
     "systemd_export": true,
-    "weekly_planning_cron": true
+    "weekly_planning_cron": true,
+    "activity_debrief_cron": true
   },
   "backup": {
     "last_backup_dir": "/home/coach/.garmin-coach-agent/backups/2026-06-11T16-00-00Z"
@@ -415,6 +442,7 @@ Le manifest doit stocker au moins :
   - `systemd_sync` : bool, requis
   - `systemd_export` : bool, requis
   - `weekly_planning_cron` : bool, requis
+  - `activity_debrief_cron` : bool, requis
 - `backup` : objet, requis
   - `last_backup_dir` : string, requis
 - `installed_at` : timestamp UTC ISO-8601, requis
