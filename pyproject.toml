@@ -52,6 +52,11 @@ select = ["E", "F", "I", "N", "W"]
 testpaths = ["tests"]
 addopts = "--cov=garmin_coach --cov-report=term-missing --cov-fail-under=90"
 
+[tool.coverage.run]
+omit = [
+    "garmin_coach/install_openclaw_agent.py",
+]
+
 [tool.mypy]
 python_version = "3.13"
 strict = true
