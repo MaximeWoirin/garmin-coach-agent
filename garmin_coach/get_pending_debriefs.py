@@ -14,7 +14,7 @@ def main() -> None:
     parser.add_argument(
         "--min-age-minutes",
         type=int,
-        default=15,
+        default=0,
         help="Âge minimum avant de proposer un débrief",
     )
     parser.add_argument(

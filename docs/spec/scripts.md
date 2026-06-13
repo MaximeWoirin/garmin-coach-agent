@@ -331,7 +331,7 @@ Script de détection des activités récentes qui peuvent recevoir un débrief.
 
 Entrées :
 - `--lookback-hours` : fenêtre de recherche, défaut `36`
-- `--min-age-minutes` : âge minimum avant de proposer un débrief, défaut `15`
+- `--min-age-minutes` : âge minimum avant de proposer un débrief, défaut `0`
 - `--reprompt-after-hours` : cooldown avant une relance, défaut `12`
 - `--max-prompt-count` : nombre max de relances admissibles, défaut `2`
 - `--limit` : nombre max de résultats, défaut `20`
@@ -345,6 +345,27 @@ Comportement backbone :
 - réutilise un éventuel lien existant vers `plan_sessions`
 - exclut les débriefs déjà `completed` ou `dismissed`
 - applique des règles minimales de cooldown / relance
+
+### mark-activity-debrief-prompted
+
+```bash
+python -m garmin_coach.mark_activity_debrief_prompted --activity-id 123 --activity-id 456
+```
+
+Script de transition de statut pour enregistrer qu'un prompt proactif a bien été envoyé.
+
+Entrées :
+- `--activity-id` : identifiant local d'activité, répétable
+- `--dry-run` : simule sans écrire
+
+Sortie :
+- JSON avec la liste des débriefs marqués `prompted`
+
+Comportement backbone :
+- vérifie que les lignes `activity_debriefs` existent bien
+- refuse d'écraser des débriefs déjà `completed` ou `dismissed`
+- incrémente `prompt_count`
+- renseigne `first_prompted_at` et `last_prompted_at`
 
 ### save-activity-debrief
 

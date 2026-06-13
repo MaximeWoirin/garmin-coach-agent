@@ -59,6 +59,7 @@ On sépare clairement :
 │   │   └── <skill>/SKILL.md
 │   └── playbooks/
 │       ├── daily_coaching.md
+│       ├── proactive_activity_debrief.md
 │       ├── weekly_planning.md
 │       ├── sync_and_review.md
 │       └── fallback_no_garmin.md
@@ -72,6 +73,7 @@ On sépare clairement :
 │   ├── get-constraints
 │   ├── get-current-plan
 │   ├── get-pending-debriefs
+│   ├── mark-activity-debrief-prompted
 │   ├── save-activity-debrief
 │   ├── create-goal
 │   ├── create-plan-draft
@@ -90,10 +92,12 @@ On sépare clairement :
     ├── jsonio.py
     ├── create_goal.py
     ├── get_pending_debriefs.py
+    ├── mark_activity_debrief_prompted.py
     ├── save_activity_debrief.py
     ├── debriefs/
     │   ├── __init__.py
     │   ├── read.py
+    │   ├── status.py
     │   └── write.py
     ├── garmin/
     │   ├── __init__.py

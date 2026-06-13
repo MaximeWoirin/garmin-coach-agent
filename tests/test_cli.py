@@ -69,6 +69,38 @@ def test_get_pending_debriefs_main(seeded_db: Path) -> None:
             assert exc_info.value.code == 0
 
 
+def test_mark_activity_debrief_prompted_main(seeded_db: Path) -> None:
+    """Test mark_activity_debrief_prompted CLI."""
+    from datetime import UTC, datetime
+
+    from garmin_coach.debriefs.read import get_pending_debriefs
+
+    get_pending_debriefs(
+        lookback_hours=48,
+        min_age_minutes=0,
+        db_path=seeded_db,
+        now=datetime(2026, 6, 4, 18, 0, 0, tzinfo=UTC),
+    )
+
+    with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):
+        with patch(
+            "sys.argv",
+            [
+                "mark_activity_debrief_prompted",
+                "--activity-id",
+                "1",
+                "--activity-id",
+                "2",
+                "--dry-run",
+            ],
+        ):
+            from garmin_coach.mark_activity_debrief_prompted import main
+
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+
+
 def test_create_constraint_main(seeded_db: Path) -> None:
     """Test create_constraint CLI."""
     with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):

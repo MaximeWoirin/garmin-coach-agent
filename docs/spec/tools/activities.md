@@ -9,6 +9,7 @@ Gérer les séances réelles importées depuis Garmin.
 - `sync-garmin`
 - `get-activities`
 - `get-pending-debriefs`
+- `mark-activity-debrief-prompted`
 - `save-activity-debrief`
 
 ## Ce qui manque probablement
@@ -16,6 +17,7 @@ Gérer les séances réelles importées depuis Garmin.
 - matching plus fin entre activité réelle et séance planifiée
 - gestion explicite des doublons et des corrections tardives
 - orchestration proactive OpenClaw au-dessus des débriefs (prompt, cooldown, playbook)
+- parsing fiable des réponses groupées utilisateur vers plusieurs activités
 - éventuel rapport de réconciliation dédié si le snapshot de sync devient trop chargé
 
 ## Backbone minimal
@@ -25,6 +27,7 @@ Le backbone V1 du bloc activités repose sur ces scripts :
 - `sync-garmin`
 - `get-activities`
 - `get-pending-debriefs`
+- `mark-activity-debrief-prompted`
 - `save-activity-debrief`
 
 ## Dépendances

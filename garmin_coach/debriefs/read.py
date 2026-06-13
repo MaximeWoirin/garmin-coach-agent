@@ -12,7 +12,7 @@ from garmin_coach.jsonio import error_response, success_response
 
 def get_pending_debriefs(
     lookback_hours: int = 36,
-    min_age_minutes: int = 15,
+    min_age_minutes: int = 0,
     reprompt_after_hours: int = 12,
     max_prompt_count: int = 2,
     limit: int = 20,

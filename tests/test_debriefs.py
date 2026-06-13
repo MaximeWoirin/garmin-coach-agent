@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from garmin_coach.debriefs.read import get_pending_debriefs
+from garmin_coach.debriefs.status import mark_activity_debrief_prompted
 from garmin_coach.debriefs.write import save_activity_debrief
 from garmin_coach.db import get_connection
 
@@ -118,3 +119,33 @@ def test_get_pending_debriefs_respects_prompt_cooldown(seeded_db: Path) -> None:
 
     assert result["status"] == "success"
     assert result["pending_debriefs"] == []
+
+
+def test_mark_activity_debrief_prompted_updates_group(seeded_db: Path) -> None:
+    pending = get_pending_debriefs(
+        lookback_hours=48,
+        min_age_minutes=0,
+        reprompt_after_hours=12,
+        max_prompt_count=2,
+        limit=10,
+        db_path=seeded_db,
+        now=datetime(2026, 6, 4, 18, 0, 0, tzinfo=UTC),
+    )
+    activity_ids = [item["activity_id"] for item in pending["pending_debriefs"]]
+
+    result = mark_activity_debrief_prompted(activity_ids=activity_ids, db_path=seeded_db)
+
+    assert result["status"] == "success"
+    assert sorted(item["activity_id"] for item in result["updated"]) == sorted(activity_ids)
+    assert all(item["next_status"] == "prompted" for item in result["updated"])
+
+    conn = get_connection(seeded_db)
+    rows = conn.execute(
+        "SELECT activity_id, status, prompt_count, first_prompted_at, last_prompted_at FROM activity_debriefs ORDER BY activity_id"
+    ).fetchall()
+    conn.close()
+    assert rows
+    assert all(row[1] == "prompted" for row in rows)
+    assert all(row[2] == 1 for row in rows)
+    assert all(row[3] is not None for row in rows)
+    assert all(row[4] is not None for row in rows)
