@@ -27,6 +27,7 @@ Les scripts CLI générés par `[project.scripts]` sont le contrat public de l'a
 
 | Script | Module | Skill | Usage |
 |---|---|---|---|
+| `get-constraint-cleanup` | `get_constraint_cleanup` | [get-constraint-cleanup](skills/get-constraint-cleanup/SKILL.md) | Relire les contraintes actives et détecter les candidates au ménage |
 | `get-constraints` | `get_constraints` | [get-constraints](skills/get-constraints/SKILL.md) | Lire les contraintes filtrées par scope/statut |
 | `create-constraint` | `create_constraint` | [create-constraint](skills/create-constraint/SKILL.md) | Créer une contrainte utilisateur |
 | `set-constraint-status` | `set_constraint_status` | [set-constraint-status](skills/set-constraint-status/SKILL.md) | Passer une contrainte en `active` ou `inactive` |

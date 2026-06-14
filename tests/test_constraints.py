@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
+from garmin_coach.constraints.cleanup import get_constraint_cleanup
 from garmin_coach.constraints.read import get_constraints
 from garmin_coach.constraints.status import set_constraint_status
 from garmin_coach.constraints.write import create_constraint, delete_constraint
@@ -41,6 +43,52 @@ def test_get_constraints_summary_by_type(seeded_db: Path) -> None:
     result = get_constraints(status=None, db_path=seeded_db)
     assert result["summary"]["by_type"]["availability"] == 1
     assert result["summary"]["by_type"]["health"] == 1
+
+
+def test_get_constraint_cleanup_detects_stale_temporary(seeded_db: Path) -> None:
+    result = get_constraint_cleanup(
+        db_path=seeded_db,
+        as_of=date(2026, 6, 30),
+        stale_after_days=21,
+    )
+    assert result["status"] == "success"
+    assert result["summary"]["cleanup_candidate_count"] == 1
+    candidate = result["cleanup_candidates"][0]
+    assert candidate["constraint_id"] == 1
+    assert candidate["reasons"][0]["code"] == "stale_temporary"
+
+
+def test_get_constraint_cleanup_detects_expired_and_low_confidence(tmp_db: Path) -> None:
+    create_constraint(
+        constraint_type="schedule",
+        raw_text="Canicule passée",
+        start_date="2026-06-01",
+        end_date="2026-06-05",
+        severity="low",
+        scope="training",
+        confidence=0.6,
+        db_path=tmp_db,
+    )
+
+    result = get_constraint_cleanup(
+        db_path=tmp_db,
+        as_of=date(2026, 6, 14),
+    )
+
+    assert result["status"] == "success"
+    assert result["summary"]["cleanup_candidate_count"] == 1
+    reasons = {reason["code"] for reason in result["cleanup_candidates"][0]["reasons"]}
+    assert reasons == {"expired", "low_confidence"}
+    assert result["summary"]["cleanup_candidates_by_reason"] == {
+        "expired": 1,
+        "low_confidence": 1,
+    }
+
+
+def test_get_constraint_cleanup_rejects_invalid_threshold(seeded_db: Path) -> None:
+    result = get_constraint_cleanup(db_path=seeded_db, confidence_threshold=1.5)
+    assert result["status"] == "failed"
+    assert "confidence_threshold" in result["errors"][0]
 
 
 # --- Tests statut ---
