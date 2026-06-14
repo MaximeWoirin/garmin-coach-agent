@@ -62,6 +62,7 @@ Le script :
 - installe un timer `systemd --user` pour exporter chaque jour vers Garmin les séances prévues demain
 - peut créer / mettre à jour un cron OpenClaw de weekly planning si un `session-key` ou une delivery explicite est fourni(e)
 - peut créer / mettre à jour un cron OpenClaw de débrief proactif post-séance si un `session-key` ou une delivery explicite est fourni(e)
+- peut créer / mettre à jour un cron OpenClaw hebdomadaire de ménage des contraintes si un `session-key` ou une delivery explicite est fourni(e)
 - réécrit les commandes des skills pour pointer vers ce runtime
 - sauvegarde les fichiers remplacés dans `.garmin-coach-agent/backups/<timestamp>/`
 - sauvegarde aussi la config OpenClaw avant patch si une allowlist doit être modifiée
@@ -78,10 +79,13 @@ Options utiles :
 ./scripts/install-openclaw-agent.sh --weekly-planning-to 'telegram:8771763758' --weekly-planning-channel telegram --weekly-planning-account garmin_clawch_bot
 ./scripts/install-openclaw-agent.sh --activity-debrief-session-key 'agent:garmin-coach:telegram:direct:8771763758'
 ./scripts/install-openclaw-agent.sh --activity-debrief-to 'telegram:8771763758' --activity-debrief-channel telegram --activity-debrief-account garmin_clawch_bot
+./scripts/install-openclaw-agent.sh --constraint-cleanup-session-key 'agent:garmin-coach:telegram:direct:8771763758'
+./scripts/install-openclaw-agent.sh --constraint-cleanup-to 'telegram:8771763758' --constraint-cleanup-channel telegram --constraint-cleanup-account garmin_clawch_bot
 ./scripts/install-openclaw-agent.sh --skip-systemd-sync
 ./scripts/install-openclaw-agent.sh --skip-systemd-export
 ./scripts/install-openclaw-agent.sh --skip-weekly-planning-cron
 ./scripts/install-openclaw-agent.sh --skip-activity-debrief-cron
+./scripts/install-openclaw-agent.sh --skip-constraint-cleanup-cron
 ./scripts/install-openclaw-agent.sh --workspace /chemin/vers/workspace
 ./scripts/install-openclaw-agent.sh --no-bootstrap
 ```
@@ -90,6 +94,7 @@ Notes produit :
 
 - le weekly planning reste une feature du produit, mais il demande un vrai contexte cible ; l'installeur le crée seulement s'il sait où poster / dans quelle session tourner
 - le débrief proactif post-séance s'appuie sur `playbooks/proactive_activity_debrief.md`, groupe plusieurs activités en un seul message et insiste sur le suivi des douleurs / gênes pour les blessures
+- le ménage hebdomadaire des contraintes s'appuie sur `playbooks/constraint_cleanup.md` et sur le script structuré `get-constraint-cleanup`
 - le timer systemd d'export Garmin reste borné à **demain** ; il n'est pas utilisé pour publier toute une semaine d'un coup
 
 ## Statut

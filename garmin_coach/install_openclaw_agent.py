@@ -38,6 +38,8 @@ Options:
                             Do not create/update the weekly planning OpenClaw cron
   --skip-activity-debrief-cron
                             Do not create/update the proactive activity debrief OpenClaw cron
+  --skip-constraint-cleanup-cron
+                            Do not create/update the weekly constraint cleanup OpenClaw cron
   --weekly-planning-on-calendar EXPR
                             Cron expression for weekly planning (default: "0 18 * * 0")
   --weekly-planning-tz IANA Timezone for weekly planning cron (default: UTC)
@@ -71,6 +73,23 @@ Options:
                             Agent prompt override for proactive activity debrief cron
   --activity-debrief-model MODEL
                             Model override for proactive activity debrief cron
+  --constraint-cleanup-on-calendar EXPR
+                            Cron expression for weekly constraint cleanup (default: "0 18 * * 0")
+  --constraint-cleanup-tz IANA Timezone for weekly constraint cleanup cron (default: UTC)
+  --constraint-cleanup-session-key KEY
+                            Route weekly constraint cleanup runs into an existing OpenClaw session
+  --constraint-cleanup-channel CHANNEL
+                            Delivery channel for weekly constraint cleanup fallback announce
+  --constraint-cleanup-to DEST
+                            Delivery destination for weekly constraint cleanup fallback announce
+  --constraint-cleanup-account ID
+                            Delivery account id for weekly constraint cleanup fallback announce
+  --constraint-cleanup-name NAME
+                            Cron job name override (default: constraint-cleanup-<agent-id>)
+  --constraint-cleanup-message TEXT
+                            Agent prompt override for weekly constraint cleanup cron
+  --constraint-cleanup-model MODEL
+                            Model override for weekly constraint cleanup cron
   --no-bootstrap            Do not install BOOTSTRAP.md
   --preserve-agent-core     Do not overwrite HEARTBEAT.md, IDENTITY.md, SOUL.md if they exist
   --skip-package-install    Copy files only; skip venv/package install
@@ -94,6 +113,7 @@ What it installs:
   - systemd user timer  -> export quotidien des plans du lendemain (unless --skip-systemd-export)
   - OpenClaw cron        -> weekly planning, when session/delivery context is provided
   - OpenClaw cron        -> proactive activity debriefs, when session/delivery context is provided
+  - OpenClaw cron        -> weekly constraint cleanup, when session/delivery context is provided
   - persisted config     -> <install-root>/coach-config.json
   - install manifest     -> <install-root>/manifest.json
 """
@@ -116,6 +136,14 @@ ACTIVITY_DEBRIEF_DEFAULT_MESSAGE = (
     "réponds par NO_REPLY."
 )
 
+CONSTRAINT_CLEANUP_DEFAULT_MESSAGE = (
+    "Ménage hebdomadaire des contraintes. Suis playbooks/constraint_cleanup.md : lis les "
+    "contraintes actives avec get-constraint-cleanup, fais un récap très concis, signale "
+    "clairement les candidates au ménage avec leur raison, puis demande si certaines doivent "
+    "passer en inactive. N'archive rien sans confirmation explicite. Si aucune contrainte "
+    "active n'existe, dis-le simplement."
+)
+
 ENTRYPOINT_COMMANDS = [
     "auth-garmin",
     "create-constraint",
@@ -126,6 +154,7 @@ ENTRYPOINT_COMMANDS = [
     "delete-plan-session",
     "export-plan-garmin",
     "get-activities",
+    "get-constraint-cleanup",
     "get-constraints",
     "get-current-plan",
     "get-fitness-state",
@@ -164,6 +193,7 @@ class InstallOptions:
     skip_systemd_export: bool = False
     skip_weekly_planning_cron: bool = False
     skip_activity_debrief_cron: bool = False
+    skip_constraint_cleanup_cron: bool = False
     sync_on_calendar: str = "hourly"
     export_on_calendar: str = "daily"
     sync_lookback_days: int = 3
@@ -185,6 +215,15 @@ class InstallOptions:
     activity_debrief_name: str = ""
     activity_debrief_message: str = ""
     activity_debrief_model: str = ""
+    constraint_cleanup_on_calendar: str = "0 18 * * 0"
+    constraint_cleanup_tz: str = "UTC"
+    constraint_cleanup_session_key: str = ""
+    constraint_cleanup_channel: str = ""
+    constraint_cleanup_to: str = ""
+    constraint_cleanup_account: str = ""
+    constraint_cleanup_name: str = ""
+    constraint_cleanup_message: str = ""
+    constraint_cleanup_model: str = ""
 
 
 @dataclass
@@ -220,6 +259,14 @@ class ExistingInstallState:
     debrief_schedule: str = ""
     debrief_model: str = ""
     debrief_name: str = ""
+    cleanup_session_key: str = ""
+    cleanup_to: str = ""
+    cleanup_channel: str = ""
+    cleanup_account: str = ""
+    cleanup_tz: str = ""
+    cleanup_schedule: str = ""
+    cleanup_model: str = ""
+    cleanup_name: str = ""
 
 
 @dataclass
@@ -243,6 +290,7 @@ class RuntimeState:
     feature_systemd_export: bool = False
     feature_weekly_planning: bool = False
     feature_activity_debrief: bool = False
+    feature_constraint_cleanup: bool = False
     db_status: str = "not-run"
     last_sync_timer_name: str = ""
     last_export_timer_name: str = ""
@@ -940,6 +988,16 @@ class Installer:
             previous.debrief_schedule = str(debrief.get("schedule", ""))
             previous.debrief_model = str(debrief.get("model", ""))
             previous.debrief_name = str(debrief.get("name", ""))
+            cleanup = config.get("constraint_cleanup", {})
+            cleanup_delivery = cleanup.get("delivery", {})
+            previous.cleanup_session_key = str(cleanup.get("session_key", ""))
+            previous.cleanup_to = str(cleanup_delivery.get("to", ""))
+            previous.cleanup_channel = str(cleanup_delivery.get("channel", ""))
+            previous.cleanup_account = str(cleanup_delivery.get("account_id", ""))
+            previous.cleanup_tz = str(cleanup.get("timezone", ""))
+            previous.cleanup_schedule = str(cleanup.get("schedule", ""))
+            previous.cleanup_model = str(cleanup.get("model", ""))
+            previous.cleanup_name = str(cleanup.get("name", ""))
         self.state.previous = previous
 
         detected_mode = "install"
@@ -1012,6 +1070,36 @@ class Installer:
             self.options.activity_debrief_account = previous.debrief_account
         if not self.options.activity_debrief_message:
             self.options.activity_debrief_message = ACTIVITY_DEBRIEF_DEFAULT_MESSAGE
+
+    def resolve_constraint_cleanup_defaults(self) -> None:
+        previous = self.state.previous
+        selected = self.require_selected_agent()
+        if not self.options.constraint_cleanup_name:
+            self.options.constraint_cleanup_name = (
+                previous.cleanup_name or f"constraint-cleanup-{selected.agent_id}"
+            )
+        if not self.options.constraint_cleanup_model:
+            self.options.constraint_cleanup_model = previous.cleanup_model or selected.model
+        if not self.options.constraint_cleanup_tz or self.options.constraint_cleanup_tz == "UTC":
+            if previous.cleanup_tz:
+                self.options.constraint_cleanup_tz = previous.cleanup_tz
+            elif os.environ.get("TZ"):
+                self.options.constraint_cleanup_tz = os.environ["TZ"]
+        if (
+            self.options.constraint_cleanup_on_calendar == "0 18 * * 0"
+            and previous.cleanup_schedule
+        ):
+            self.options.constraint_cleanup_on_calendar = previous.cleanup_schedule
+        if not self.options.constraint_cleanup_session_key:
+            self.options.constraint_cleanup_session_key = previous.cleanup_session_key
+        if not self.options.constraint_cleanup_to:
+            self.options.constraint_cleanup_to = previous.cleanup_to
+        if not self.options.constraint_cleanup_channel:
+            self.options.constraint_cleanup_channel = previous.cleanup_channel
+        if not self.options.constraint_cleanup_account:
+            self.options.constraint_cleanup_account = previous.cleanup_account
+        if not self.options.constraint_cleanup_message:
+            self.options.constraint_cleanup_message = CONSTRAINT_CLEANUP_DEFAULT_MESSAGE
 
     def prompt_weekly_planning_if_needed(self) -> None:
         if self.options.skip_weekly_planning_cron:
@@ -1098,6 +1186,51 @@ class Installer:
         )
         self.options.activity_debrief_model = self.prompt_line(
             "Model du débrief proactif", self.options.activity_debrief_model
+        )
+
+    def prompt_constraint_cleanup_if_needed(self) -> None:
+        if self.options.skip_constraint_cleanup_cron:
+            return
+        if self.options.constraint_cleanup_session_key or self.options.constraint_cleanup_to:
+            return
+        if not self.is_tty():
+            return
+        selected = self.require_selected_agent()
+        if not self.prompt_yes_no(
+            f"Créer aussi le cron OpenClaw de ménage hebdomadaire des contraintes pour l'agent {selected.agent_id} ?",
+            "y",
+        ):
+            self.options.skip_constraint_cleanup_cron = True
+            return
+        self.options.constraint_cleanup_session_key = self.prompt_line(
+            "Session key cible du ménage contraintes (recommandé; vide pour utiliser seulement une delivery explicite)",
+            self.options.constraint_cleanup_session_key or self.options.weekly_planning_session_key,
+        )
+        if not self.options.constraint_cleanup_session_key:
+            self.options.constraint_cleanup_channel = self.prompt_line(
+                "Channel de delivery du ménage contraintes (ex: telegram, discord)",
+                self.options.constraint_cleanup_channel or self.options.weekly_planning_channel,
+            )
+            self.options.constraint_cleanup_to = self.prompt_line(
+                "Destination de delivery du ménage contraintes (chat/user id)",
+                self.options.constraint_cleanup_to or self.options.weekly_planning_to,
+            )
+            self.options.constraint_cleanup_account = self.prompt_line(
+                "Account id de delivery du ménage contraintes (optionnel)",
+                self.options.constraint_cleanup_account or self.options.weekly_planning_account,
+            )
+            if not self.options.constraint_cleanup_to:
+                self.log("Skipping constraint cleanup cron: no session key or delivery destination provided.")
+                self.options.skip_constraint_cleanup_cron = True
+                return
+        self.options.constraint_cleanup_on_calendar = self.prompt_line(
+            "Expression cron pour le ménage contraintes", self.options.constraint_cleanup_on_calendar
+        )
+        self.options.constraint_cleanup_tz = self.prompt_line(
+            "Timezone IANA du ménage contraintes", self.options.constraint_cleanup_tz
+        )
+        self.options.constraint_cleanup_model = self.prompt_line(
+            "Model du ménage contraintes", self.options.constraint_cleanup_model
         )
 
     def find_existing_cron_id(self, name: str, agent_id: str) -> str:
@@ -1285,6 +1418,91 @@ class Installer:
             if output.strip():
                 print(output.rstrip(), file=sys.stderr)
 
+    def create_or_update_constraint_cleanup_cron(self) -> None:
+        self.resolve_constraint_cleanup_defaults()
+        if self.options.skip_constraint_cleanup_cron:
+            self.log("Skipping constraint cleanup cron by request.")
+            return
+        if shutil.which("openclaw") is None:
+            self.log("openclaw CLI not found, skipping constraint cleanup cron creation")
+            return
+        self.prompt_constraint_cleanup_if_needed()
+        if self.options.skip_constraint_cleanup_cron:
+            return
+        if not self.options.constraint_cleanup_session_key and not self.options.constraint_cleanup_to:
+            self.log(
+                "Skipping constraint cleanup cron: pass --constraint-cleanup-session-key or --constraint-cleanup-to "
+                "(with optional channel/account), or run interactively."
+            )
+            return
+
+        selected = self.require_selected_agent()
+        existing_id = self.find_existing_cron_id(
+            self.options.constraint_cleanup_name,
+            selected.agent_id,
+        )
+        command = [
+            "openclaw",
+            "cron",
+            "edit" if existing_id else "add",
+        ]
+        if existing_id:
+            command.append(existing_id)
+        command.extend(
+            [
+                "--cron",
+                self.options.constraint_cleanup_on_calendar,
+                "--name",
+                self.options.constraint_cleanup_name,
+                "--agent",
+                selected.agent_id,
+                "--message",
+                self.options.constraint_cleanup_message,
+                "--thinking",
+                "medium",
+                "--light-context",
+            ]
+        )
+        if self.options.constraint_cleanup_model:
+            command.extend(["--model", self.options.constraint_cleanup_model])
+        if self.options.constraint_cleanup_tz:
+            command.extend(["--tz", self.options.constraint_cleanup_tz])
+        if self.options.constraint_cleanup_session_key:
+            command.extend(["--session-key", self.options.constraint_cleanup_session_key])
+        else:
+            command.extend(["--session", "isolated"])
+        if self.options.constraint_cleanup_to:
+            command.extend(["--announce", "--to", self.options.constraint_cleanup_to])
+            if self.options.constraint_cleanup_channel:
+                command.extend(["--channel", self.options.constraint_cleanup_channel])
+            if self.options.constraint_cleanup_account:
+                command.extend(["--account", self.options.constraint_cleanup_account])
+
+        if self.options.dry_run:
+            print(f"[dry-run] create/update constraint cleanup cron: {self.options.constraint_cleanup_name}")
+            self.state.feature_constraint_cleanup = True
+            return
+
+        if existing_id:
+            self.log(f"Updating existing constraint cleanup cron: {self.options.constraint_cleanup_name}")
+        else:
+            self.log(f"Creating constraint cleanup cron: {self.options.constraint_cleanup_name}")
+
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        output = result.stdout + result.stderr
+        if result.returncode == 0:
+            if output.strip():
+                print(output.rstrip())
+            self.state.feature_constraint_cleanup = True
+        elif existing_id:
+            self.log("Warning: Failed to update existing constraint cleanup cron; keeping current job.")
+            if output.strip():
+                print(output.rstrip(), file=sys.stderr)
+        else:
+            self.log("Warning: Failed to create constraint cleanup cron")
+            if output.strip():
+                print(output.rstrip(), file=sys.stderr)
+
     def write_persisted_coach_config(self, backup_root: Path) -> None:
         path = self.require_coach_config_path()
         if self.options.dry_run:
@@ -1306,6 +1524,13 @@ class Installer:
             debrief_delivery["channel"] = self.options.activity_debrief_channel
         if self.options.activity_debrief_account:
             debrief_delivery["account_id"] = self.options.activity_debrief_account
+        cleanup_delivery: dict[str, str] = {}
+        if self.options.constraint_cleanup_to:
+            cleanup_delivery["to"] = self.options.constraint_cleanup_to
+        if self.options.constraint_cleanup_channel:
+            cleanup_delivery["channel"] = self.options.constraint_cleanup_channel
+        if self.options.constraint_cleanup_account:
+            cleanup_delivery["account_id"] = self.options.constraint_cleanup_account
         config = {
             "schema_version": 1,
             "agent_id": self.require_selected_agent().agent_id,
@@ -1326,6 +1551,15 @@ class Installer:
                 "schedule": self.options.activity_debrief_on_calendar,
                 "session_key": self.options.activity_debrief_session_key,
                 "delivery": debrief_delivery,
+            },
+            "constraint_cleanup": {
+                "enabled": self.state.feature_constraint_cleanup,
+                "name": self.options.constraint_cleanup_name,
+                "model": self.options.constraint_cleanup_model,
+                "timezone": self.options.constraint_cleanup_tz,
+                "schedule": self.options.constraint_cleanup_on_calendar,
+                "session_key": self.options.constraint_cleanup_session_key,
+                "delivery": cleanup_delivery,
             },
             "garmin": {
                 "sync_enabled": self.state.feature_systemd_sync,
@@ -1370,6 +1604,7 @@ class Installer:
                 "systemd_export": self.state.feature_systemd_export,
                 "weekly_planning_cron": self.state.feature_weekly_planning,
                 "activity_debrief_cron": self.state.feature_activity_debrief,
+                "constraint_cleanup_cron": self.state.feature_constraint_cleanup,
             },
             "backup": {
                 "last_backup_dir": str(backup_root),
@@ -1432,6 +1667,10 @@ class Installer:
         self.log(
             "Activity debrief cron:    "
             f"{self.options.activity_debrief_name if self.state.feature_activity_debrief else 'skipped'}"
+        )
+        self.log(
+            "Constraint cleanup cron: "
+            f"{self.options.constraint_cleanup_name if self.state.feature_constraint_cleanup else 'skipped'}"
         )
 
     def require_selected_agent(self) -> AgentInfo:
@@ -1642,6 +1881,7 @@ class Installer:
         )
         self.create_or_update_weekly_planning_cron()
         self.create_or_update_activity_debrief_cron()
+        self.create_or_update_constraint_cleanup_cron()
         self.write_persisted_coach_config(backup_root)
         self.write_manifest(ts, backup_root)
         self.print_install_summary(backup_root)
@@ -1707,6 +1947,9 @@ def parse_args(argv: list[str], repo_dir: Path) -> InstallOptions:
         elif arg == "--skip-activity-debrief-cron":
             options.skip_activity_debrief_cron = True
             index += 1
+        elif arg == "--skip-constraint-cleanup-cron":
+            options.skip_constraint_cleanup_cron = True
+            index += 1
         elif arg == "--weekly-planning-on-calendar":
             options.weekly_planning_on_calendar = require_value()
         elif arg == "--weekly-planning-tz":
@@ -1743,6 +1986,24 @@ def parse_args(argv: list[str], repo_dir: Path) -> InstallOptions:
             options.activity_debrief_message = require_value()
         elif arg == "--activity-debrief-model":
             options.activity_debrief_model = require_value()
+        elif arg == "--constraint-cleanup-on-calendar":
+            options.constraint_cleanup_on_calendar = require_value()
+        elif arg == "--constraint-cleanup-tz":
+            options.constraint_cleanup_tz = require_value()
+        elif arg == "--constraint-cleanup-session-key":
+            options.constraint_cleanup_session_key = require_value()
+        elif arg == "--constraint-cleanup-channel":
+            options.constraint_cleanup_channel = require_value()
+        elif arg == "--constraint-cleanup-to":
+            options.constraint_cleanup_to = require_value()
+        elif arg == "--constraint-cleanup-account":
+            options.constraint_cleanup_account = require_value()
+        elif arg == "--constraint-cleanup-name":
+            options.constraint_cleanup_name = require_value()
+        elif arg == "--constraint-cleanup-message":
+            options.constraint_cleanup_message = require_value()
+        elif arg == "--constraint-cleanup-model":
+            options.constraint_cleanup_model = require_value()
         elif arg == "--no-bootstrap":
             options.with_bootstrap = False
             index += 1

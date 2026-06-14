@@ -604,6 +604,30 @@ Interface JSON minimale :
 - `warnings[]`
 - `errors[]`
 
+### get-constraint-cleanup
+
+```bash
+python -m garmin_coach.get_constraint_cleanup --status active --as-of 2026-06-30
+```
+
+Tool de lecture pour relire les contraintes actives et détecter celles qui semblent à nettoyer / reconfirmer.
+
+Entrées :
+- `--scope` : filtre optionnel sur le périmètre
+- `--status` : filtre optionnel, par défaut les contraintes actives
+- `--limit` : optionnel, nombre max de contraintes
+- `--as-of` : date ISO de référence pour évaluer expiration / ancienneté
+- `--stale-after-days` : seuil d’ancienneté pour une contrainte temporaire ouverte
+- `--confidence-threshold` : seuil en dessous duquel une contrainte est signalée comme peu fiable
+
+Sortie :
+- JSON avec les contraintes enrichies, les `cleanup_candidates`, un `summary` et les `heuristics`
+
+Heuristiques backbone :
+- contrainte expirée (`end_date` passée)
+- contrainte à faible confiance
+- contrainte temporaire (`availability`, `schedule`, `mental_state`) ouverte depuis longtemps sans `end_date`
+
 ### get-constraints
 
 ```bash

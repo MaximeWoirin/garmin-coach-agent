@@ -19,6 +19,16 @@ def test_get_activities_main(seeded_db: Path) -> None:
             assert exc_info.value.code == 0
 
 
+def test_get_constraint_cleanup_main(seeded_db: Path) -> None:
+    """Test get_constraint_cleanup CLI."""
+    with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):
+        with patch("sys.argv", ["get_constraint_cleanup", "--as-of", "2026-06-30"]):
+            from garmin_coach.get_constraint_cleanup import main
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+
+
 def test_get_constraints_main(seeded_db: Path) -> None:
     """Test get_constraints CLI."""
     with patch.dict("os.environ", {"GARMIN_COACH_DB": str(seeded_db)}):

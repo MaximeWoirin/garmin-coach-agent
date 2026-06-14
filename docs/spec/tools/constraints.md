@@ -6,6 +6,7 @@ Garder la trace des contraintes d’entraînement et de vie qui influencent le p
 
 ## Existant
 
+- `get-constraint-cleanup`
 - `get-constraints`
 - `create-constraint`
 - `delete-constraint`
@@ -17,11 +18,13 @@ Garder la trace des contraintes d’entraînement et de vie qui influencent le p
 - éventuelle édition d’une contrainte existante sans delete + recreate
 - règles de déduplication / consolidation si plusieurs contraintes se recouvrent
 - normalisation plus poussée si le texte libre devient insuffisant
+- heuristiques de ménage plus riches si le besoin apparaît
 
 ## Backbone minimal
 
 Le backbone V1 du bloc contraintes repose sur ces scripts :
 
+- `get-constraint-cleanup`
 - `get-constraints`
 - `create-constraint`
 - `set-constraint-status`

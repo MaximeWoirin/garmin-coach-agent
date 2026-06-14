@@ -42,6 +42,7 @@ def _run_installer(
     extra_env: dict[str, str] | None = None,
     skip_weekly: bool = True,
     skip_activity_debrief: bool = True,
+    skip_constraint_cleanup: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     home = tmp_path / "home"
     workspace = tmp_path / "workspace"
@@ -74,6 +75,8 @@ def _run_installer(
         cmd.insert(len(cmd) - len(extra_args), "--skip-weekly-planning-cron")
     if skip_activity_debrief:
         cmd.insert(len(cmd) - len(extra_args), "--skip-activity-debrief-cron")
+    if skip_constraint_cleanup:
+        cmd.insert(len(cmd) - len(extra_args), "--skip-constraint-cleanup-cron")
     result = subprocess.run(
         cmd,
         cwd=REPO_DIR,
@@ -112,6 +115,7 @@ def test_install_script_writes_json_manifest_and_config(tmp_path: Path) -> None:
     assert coach_config["agent_id"] == "coach"
     assert coach_config["weekly_planning"]["enabled"] is False
     assert coach_config["activity_debrief"]["enabled"] is False
+    assert coach_config["constraint_cleanup"]["enabled"] is False
     assert coach_config["garmin"] == {
         "sync_enabled": False,
         "export_tomorrow_enabled": False,
@@ -128,6 +132,7 @@ def test_install_script_writes_json_manifest_and_config(tmp_path: Path) -> None:
         "systemd_export": False,
         "weekly_planning_cron": False,
         "activity_debrief_cron": False,
+        "constraint_cleanup_cron": False,
     }
     assert manifest["backup"]["last_backup_dir"].startswith(str(install_root / "backups"))
 
@@ -135,6 +140,7 @@ def test_install_script_writes_json_manifest_and_config(tmp_path: Path) -> None:
     assert "Systemd sync:   skipped" in result.stdout
     assert "Weekly cron:    skipped" in result.stdout
     assert "Activity debrief cron:    skipped" in result.stdout
+    assert "Constraint cleanup cron: skipped" in result.stdout
 
 
 def test_install_script_preserves_existing_weekly_settings_on_update(tmp_path: Path) -> None:
@@ -156,6 +162,14 @@ def test_install_script_preserves_existing_weekly_settings_on_update(tmp_path: P
         "Europe/Paris",
         "--activity-debrief-name",
         "activity-debrief-coach",
+        "--constraint-cleanup-session-key",
+        "session:coach:telegram",
+        "--constraint-cleanup-model",
+        "azure/gpt-5.4-mini",
+        "--constraint-cleanup-tz",
+        "Europe/Paris",
+        "--constraint-cleanup-name",
+        "constraint-cleanup-coach",
     )
     assert first.returncode == 0, first.stderr
 
@@ -178,6 +192,13 @@ def test_install_script_preserves_existing_weekly_settings_on_update(tmp_path: P
     assert activity_debrief["model"] == "azure/gpt-5.4-mini"
     assert activity_debrief["timezone"] == "Europe/Paris"
     assert activity_debrief["name"] == "activity-debrief-coach"
+
+    constraint_cleanup = coach_config["constraint_cleanup"]
+    assert constraint_cleanup["enabled"] is False
+    assert constraint_cleanup["session_key"] == "session:coach:telegram"
+    assert constraint_cleanup["model"] == "azure/gpt-5.4-mini"
+    assert constraint_cleanup["timezone"] == "Europe/Paris"
+    assert constraint_cleanup["name"] == "constraint-cleanup-coach"
 
     assert manifest["install_mode"] == "update"
     assert "Mode:           update" in second.stdout
@@ -245,6 +266,70 @@ def test_install_script_creates_activity_debrief_cron(tmp_path: Path) -> None:
     log = log_path.read_text(encoding="utf-8")
     assert "cron list --json" in log
     assert "activity-debrief-coach" in log
+
+
+def test_install_script_creates_constraint_cleanup_cron(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    state_path = tmp_path / "cron-state.json"
+    log_path = tmp_path / "openclaw.log"
+    state_path.write_text(json.dumps({"jobs": []}), encoding="utf-8")
+    (fake_bin / "openclaw").write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "printf '%s\\n' \"$*\" >> \"$FAKE_OPENCLAW_LOG\"\n"
+        "if [[ \"${1:-}\" == cron && \"${2:-}\" == list && \"${3:-}\" == --json ]]; then\n"
+        "  cat \"$FAKE_OPENCLAW_STATE\"\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == cron && \"${2:-}\" == add ]]; then\n"
+        "  echo '{\"id\":\"new-id\"}'\n"
+        "  exit 0\n"
+        "fi\n"
+        "echo 'unsupported fake openclaw invocation' >&2\n"
+        "exit 2\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "openclaw").chmod(0o755)
+
+    result = _run_installer(
+        tmp_path,
+        "--constraint-cleanup-session-key",
+        "session:coach:telegram",
+        "--constraint-cleanup-model",
+        "azure/gpt-5.4-1",
+        "--constraint-cleanup-tz",
+        "Europe/Paris",
+        "--constraint-cleanup-name",
+        "constraint-cleanup-coach",
+        extra_env={
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_OPENCLAW_STATE": str(state_path),
+            "FAKE_OPENCLAW_LOG": str(log_path),
+        },
+        skip_constraint_cleanup=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    install_root = result.install_root  # type: ignore[attr-defined]
+    coach_config = json.loads((install_root / "coach-config.json").read_text(encoding="utf-8"))
+    manifest = json.loads((install_root / "manifest.json").read_text(encoding="utf-8"))
+
+    assert coach_config["constraint_cleanup"] == {
+        "enabled": True,
+        "name": "constraint-cleanup-coach",
+        "model": "azure/gpt-5.4-1",
+        "timezone": "Europe/Paris",
+        "schedule": "0 18 * * 0",
+        "session_key": "session:coach:telegram",
+        "delivery": {},
+    }
+    assert manifest["features"]["constraint_cleanup_cron"] is True
+    assert "Constraint cleanup cron: constraint-cleanup-coach" in result.stdout
+
+    log = log_path.read_text(encoding="utf-8")
+    assert "cron list --json" in log
+    assert "constraint-cleanup-coach" in log
 
 
 def test_install_script_accepts_explicit_update_mode_when_state_matches(tmp_path: Path) -> None:

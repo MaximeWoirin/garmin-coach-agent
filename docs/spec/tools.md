@@ -69,7 +69,7 @@ Pour chaque bloc métier, on garde la même fiche :
 
 ### Contraintes
 
-- **Existant** : `get-constraints`, `create-constraint`, `delete-constraint`, `set-constraint-status`
+- **Existant** : `get-constraint-cleanup`, `get-constraints`, `create-constraint`, `delete-constraint`, `set-constraint-status`
 - **Manquant** : lifecycle plus riche éventuel, normalisation plus poussée si le besoin apparaît
 - **Dépendances** : mémoire agent pour le durable, SQLite pour l’état actif/historique
 
