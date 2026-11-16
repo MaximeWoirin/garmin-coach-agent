@@ -1,46 +1,39 @@
-# Redesign Hermes : Garmin Coach Agent
+# Redesign épuré : Garmin Coach
 
-Date : 2026-11-06. Issue de l'atelier de recadrage (Maxime + Vibe).
+Date : 2026-11-06. Révision 2 de l'atelier de recadrage (Maxime + Vibe). Remplace la révision 1 (Hermes hôte unique).
 
 ## Intention et pourquoi
 
-Le projet a grandi autour d'OpenClaw : script d'installation à trois modes, 17 skills miroirs, timers systemd, crons de livraison Telegram. Ce runtime est aujourd'hui totalement coupé et le packaging qu'il exigeait constitue l'essentiel de la complexité du dépôt.
+Le projet avait grandi autour d'OpenClaw : script d'installation à trois modes, 17 skills miroirs, timers systemd, crons de livraison Telegram. Ce runtime est totalement coupé et représente l'essentiel de la complexité du dépôt.
 
-Le besoin recadré est simple : un coach qui planifie les séances d'entraînement, les publie sur la montre Garmin, suit ce qui a réellement été fait, et tient compte du contexte de vie (contraintes, objectifs, forme, douleurs).
-
-Le nouvel hôte est Hermes Agent (Nous Research), auto-hébergé dans le homelab. Il fournit nativement tout ce que le packaging OpenClaw simulait à la main : cron, livraison Telegram, mémoire persistante, skills, MCP.
+Décision de l'atelier : épurer à fond. Le projet devient une brique métier pure : CLI + MCP + une routine de synchro et publication automatique dans un container. L'intégration dans un agent (Hermes, Vibe ou autre) viendra plus tard, en consommant le MCP ou le CLI. Aucune décision d'agent n'entre dans ce périmètre.
 
 ## Objectifs
 
-- Planification hebdomadaire autonome : le dimanche, le coach planifie la semaine et publie les séances sur Garmin sans validation humaine préalable, puis envoie un récap Telegram.
-- Débrief après chaque séance : la sync détecte une nouvelle activité, le coach envoie un débrief proactif (regroupé si plusieurs activités), avec suivi systématique des douleurs et gênes.
-- Ajustements en cours de semaine, y compris de dernière minute : modifier ou retirer une séance déjà publiée sur Garmin.
-- Contexte de vie : les données structurées (contraintes, objectifs, plans, débriefs résumés) vivent dans la base SQLite existante ; le ressenti, les douleurs et les notes subjectives vivent dans la mémoire d'Hermes.
+- CLI : le coeur métier reste pilotable à la main (sync, contraintes, objectifs, plans, export, débriefs).
+- MCP : la même couche métier exposée en MCP pour tout consommateur futur (agent ou autre).
+- Container : un seul container long-running qui fait tourner la routine automatique :
+  - synchro Garmin périodique (activités et métriques vers SQLite)
+  - publication idempotente des séances planifiées vers Garmin (scheduling sur la montre)
+- Les données structurées (contraintes, objectifs, plans, activités, débriefs) restent dans la base SQLite existante.
 
 ## Non-objectifs
 
-- Pas de multi-utilisateur.
-- Pas de refonte de la couche métier Python (sync, export, SQLite, scripts) tant qu'elle fait le job.
-- Pas d'interface web.
-- Pas d'utilisation depuis Vibe dans cette itération.
+- Aucun agent, aucun playbook, aucune identité, aucune livraison Telegram dans ce périmètre.
+- Pas de cerveau de planification automatique : les plans sont créés via CLI ou MCP (par Maxime aujourd'hui, par un agent demain). La routine ne fait que publier ce qui est planifié.
+- Pas de multi-utilisateur, pas d'interface web.
+- Pas de refonte du métier Python (sync, export, SQLite) tant qu'il fait le job.
 
 ## Anti-objectifs
 
-- Réintroduire un packaging d'agent lourd : pas de script d'installation interactif, pas de venv managé, pas de gestion de timers systemd dans le dépôt. Le piège OpenClaw ne doit pas se reproduire.
-- Exposer des micro-outils à l'agent : un outil MCP = une intention.
-
-## Contraintes
-
-- Python >= 3.13, SQLite, migrations SQL existantes.
-- garminconnect (montée de 0.2.x vers 0.3.x si nécessaire pour update/delete workout).
-- L'authentification Garmin et les tokens restent côté homelab (auth.py inchangé dans son principe).
-- Hermes est le seul consommateur de la couche métier ; le MCP est le point d'entrée standard.
+- Réintroduire un packaging d'agent lourd (le piège OpenClaw ne doit pas se reproduire) : pas de script d'installation interactif, pas de venv managé, pas de gestion de timers systemd.
+- Multiplier les micro-outils exposés : un outil MCP = une intention, un appel CLI = une intention.
 
 ## Approches considérées
 
-1. Hermes hôte unique + MCP fin sur le noyau Python existant (retenue). Hermes remplace point par point le packaging mort : cron natif, Telegram, mémoire, skills. Aligné avec la stratégie homelab (même pattern que Email Zero : le service expose un MCP, l'agent consomme).
-2. Vibe hôte unique (écartée) : aucun runtime disponible chez Vibe pour la sync horaire, le rafraîchissement du token Garmin ou l'export vers la montre.
-3. Hybride Hermes worker + Vibe consommateur du MCP (écartée) : deux surfaces à maintenir pour un usage perso ; le débrief post-séance arrive naturellement sur Telegram de toute façon.
+1. CLI + MCP + routine container (retenue). Découple totalement le métier de l'agent ; intégration future = consommer le MCP. Aucune dépendance à un runtime d'agent ; le container est autonome et opérable partout (homelab docker/k8s, VPS).
+2. Hermes hôte unique (révision 1, écartée) : prématurée ; verrouille l'agent avant d'avoir stabilisé le métier ; impose téléchargement Telegram, mémoire et cron Hermes dès maintenant.
+3. Conserver le packaging OpenClaw (écartée) : runtime mort, complexité structurelle.
 
 ## Conception retenue
 
@@ -51,52 +44,50 @@ Le nouvel hôte est Hermes Agent (Nous Research), auto-hébergé dans le homelab
 
 ### Ce qui est ajouté
 
-- Un serveur MCP fin (FastMCP ou SDK officiel, au choix du builder), module garmin_coach/mcp_server.py, exposant une dizaine d'outils grossiers, un appel = une intention. Chaque outil délègue à la fonction métier existante et retourne le même JSON que les scripts CLI :
+- Un serveur MCP fin (framework au choix du builder), exposant une dizaine d'outils grossiers, un appel = une intention, chacun déléguant au métier existant et retournant le même JSON que les scripts CLI :
   - sync_garmin, get_fitness_state, get_activities, get_current_plan
   - create_plan_draft, create_plan_session, delete_plan_session, set_plan_session_status, set_plan_status
   - get_constraints, create_constraint, set_constraint_status
   - get_goals, create_goal
   - get_pending_debriefs, save_activity_debrief, mark_activity_debrief_prompted
   - export_plan_garmin (avec dry_run), adjust_plan_garmin (mise à jour ou retrait d'une séance déjà publiée)
-- Deux ou trois playbooks Hermes (planification hebdo, débrief proactif) : fichiers markdown courts dans un dossier hermes/ du dépôt, à recopier dans le workspace Hermes par l'utilisateur.
+- Un container (Dockerfile multi-stage + image slim) contenant :
+  - le serveur MCP (transport au choix du builder, ex. streamable HTTP) exposé pour tout consommateur futur
+  - la routine automatique : boucle de scheduler interne ou cron de type supercronic (au choix du builder)
+- La routine automatique :
+  - toutes les heures : sync Garmin (activités + métriques vers SQLite)
+  - une fois par jour (matin) : publication idempotente des séances planifiées de l'horizon des 7 prochains jours ; toute séance modifiée en base est réexportée, toute séance retirée est supprimée sur Garmin
+- Persistance des identifiants de workout Garmin (nouvelle colonne garmin_workout_id en base) pour la réconciliation lors des republications et ajustements.
+- Config par variables d'environnement (chemin DB, horaires de routine, identifiants Garmin) ; DB et tokens montés en volumes.
 
 ### Ce qui est supprimé
 
 - Le répertoire agent/ complet (identité, skills, playbooks OpenClaw).
 - scripts/install-openclaw-agent.sh et garmin_coach/install_openclaw_agent.py.
-- Toutes les sections OpenClaw du README et des specs concernées.
+- Toutes les sections OpenClaw du README et des specs.
 
-### Évolutions de la couche export (le seul vrai travail métier)
+### Évolutions de la couche export
 
-- Publication de la semaine entière au moment du plan (le design ancien était borné à demain avec export quotidien ; il disparaît au profit d'un export au moment du plan, puis réexport difficiel après ajustement).
-- Ajustements : mise à jour (PUT workout) et suppression (DELETE workout et schedule) via workout-service ; montée garminconnect en 0.3.x si nécessaire.
-- Persistance des identifiants de workout Garmin (nouvelle colonne en base) pour permettre la réconciliation lors des ajustements.
+- La publication devient idempotente et réconciliée : republier est sûr, ajuster est sûr (mise à jour PUT workout, suppression DELETE workout et schedule), via workout-service ; montée garminconnect en 0.3.x si nécessaire.
 - Le mapping sports locaux vers workout-service reste valable (docs/spec/garmin-workout-sport-mapping.md).
 
-### Contrat d'usage de l'agent (remplace docs/spec/agent.md)
+### Débriefs
 
-- L'agent n'émet pas de SQL libre ; il appelle les outils MCP.
-- Heuristiques simples, réponses courtes, signalement de l'incertitude quand le signal est faible.
-- Suivi systématique des douleurs et gênes lors des débriefs.
-
-### Automatisations Hermes (configuration Hermes, pas dans le dépôt)
-
-- Dimanche soir : planification, publication autonome, récap Telegram.
-- Toutes les heures : sync ; si nouvelles activités, débrief regroupé.
-- À la demande : ajustements de plan en cours de semaine.
+- Les outils CLI et MCP de débrief restent (c'est du métier : qui attend un débrief, le sauver, le marquer sollicité), mais aucune sollicitation proactive : ce déclenchement reviendra à l'agent futur.
 
 ## Resté au builder
 
 - Choix du framework MCP et nommage exact des outils.
 - Structure du module serveur MCP et gestion des sessions DB.
-- Migration export pour update/delete (avec tests) et colonne workout_id.
+- Choix du scheduler interne (boucle vs supercronic) et des horaires par défaut.
+- Transport MCP (stdio local vs HTTP exposé) et ports.
+- Migration export pour update/delete (avec tests) et colonne garmin_workout_id.
 - Nettoyage de la doc : README, docs/spec/agent.md, export-workflow.md.
 - Découpage en jalons / PRs.
 
 ## Décisions de l'atelier
 
-- Hôte : Hermes hôte unique (option A).
-- Publication : autonome au moment du plan, sans validation humaine préalable.
-- Ajustements : possibles à tout moment, y compris dernière minute.
-- Débrief : après chaque séance, regroupé si plusieurs activités.
-- Vibe : hors du périmètre de cette itération.
+- Périmètre : CLI + MCP + routine container ; agent hors périmètre, intégré plus tard via MCP.
+- Publication : idempotente, réconciliée par workout_id, horizon par défaut de 7 jours.
+- Routine : sync horaire + publication quotidienne, dans un seul container.
+- Base et données existantes : conservées, migrations additives.
