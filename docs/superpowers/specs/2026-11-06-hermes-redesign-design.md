@@ -83,7 +83,7 @@ Une dizaine d'outils grossiers, un appel = une intention, déléguant au noyau :
   - serve : démarre le serveur MCP (utilisé par garmin-coach.service, service systemd dédié)
   - sync et publish : exécutent le runner puis terminent (utilisés par les timers)
 - DB SQLite et tokens Garmin montés en volume ; configuration par variables d'environnement ; healthcheck sur l'endpoint MCP.
-- SQLite en mode WAL pour toler les accès concurrents du MCP et des timers (locks brefs à cette échelle, acceptable).
+- SQLite en mode WAL pour accepter les accès concurrents du MCP et des timers (locks brefs à cette échelle, acceptable).
 
 ### Ce qui est supprimé
 
